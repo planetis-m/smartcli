@@ -295,20 +295,6 @@ proc emitDotExpr(dest: var Tree; valueName, fieldName: string) =
     dest.addIdent(valueName)
     dest.addIdent(fieldName)
 
-# (infix "==" IDENT ENUM)
-proc emitEqIdentEnum(dest: var Tree; identName, enumName: string) =
-  dest.withTree InfixX, NoLineInfo:
-    dest.addIdent("==")
-    dest.addIdent(identName)
-    dest.addIdent(enumName)
-
-# (infix "==" IDENT STR)
-proc emitEqIdentString(dest: var Tree; identName, strValue: string) =
-  dest.withTree InfixX, NoLineInfo:
-    dest.addIdent("==")
-    dest.addIdent(identName)
-    dest.addStrLit(strValue)
-
 # (infix "==" (dot VALUE FIELD) ENUM)
 proc emitEqFieldEnum(dest: var Tree; valueName, fieldName, enumName: string) =
   dest.withTree InfixX, NoLineInfo:
@@ -316,12 +302,26 @@ proc emitEqFieldEnum(dest: var Tree; valueName, fieldName, enumName: string) =
     emitDotExpr dest, valueName, fieldName
     dest.addIdent(enumName)
 
+# (infix "==" (dot VALUE FIELD) STR)
+proc emitEqFieldString(dest: var Tree; valueName, fieldName, strValue: string) =
+  dest.withTree InfixX, NoLineInfo:
+    dest.addIdent("==")
+    emitDotExpr dest, valueName, fieldName
+    dest.addStrLit(strValue)
+
 # (infix "<" NAME INT)
 proc emitLtIntExpr(dest: var Tree; name: string; value: int) =
   dest.withTree InfixX, NoLineInfo:
     dest.addIdent("<")
     dest.addIdent(name)
     dest.addIntLit(value)
+
+# (asgn (dot result FIELD) (dot VALUE SOURCE_FIELD))
+proc emitAssignResultFieldFromField(dest: var Tree; fieldName, valueName,
+    sourceField: string) =
+  dest.withTree AsgnS, NoLineInfo:
+    emitDotExpr dest, "result", fieldName
+    emitDotExpr dest, valueName, sourceField
 
 # (asgn (dot result FIELD) VALUE)
 proc emitAssignResultFieldIdent(dest: var Tree; fieldName, valueName: string) =
@@ -354,12 +354,6 @@ proc emitFieldDecl(dest: var Tree; fieldName, typeName: string) =
 proc emitEnumField(dest: var Tree; fieldName: string) =
   dest.withTree EfldU, NoLineInfo:
     dest.addIdent(fieldName)
-    dest.addDots(4)
-
-# (let NAME . . . .)
-proc emitUnpackLet(dest: var Tree; name: string) =
-  dest.withTree LetS, NoLineInfo:
-    dest.addIdent(name)
     dest.addDots(4)
 
 # (type TYPE . . . (enum . (efld NONE . . . .) (efld VALUE . . . .)*))
@@ -416,6 +410,15 @@ proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
     dest.addIdent("int")
     dest.addIntLit(value)
 
+# (var NAME . . TYPE (call CALLEE))
+proc emitVarDeclCall0(dest: var Tree; name, typeName, callee: string) =
+  dest.withTree VarS, NoLineInfo:
+    dest.addIdent(name)
+    dest.addDots(2)
+    emitTypeRef dest, typeName
+    dest.withTree CallX, NoLineInfo:
+      dest.addIdent(callee)
+
 # (cmd NAME ARG)
 proc emitCallStmt1(dest: var Tree; name, arg: string; isString = false) =
   dest.withTree CmdS, NoLineInfo:
@@ -425,8 +428,8 @@ proc emitCallStmt1(dest: var Tree; name, arg: string; isString = false) =
     else:
       dest.addIdent(arg)
 
-# (call cliUnknownShortOption SPEC KEY)
-# (call cliUnknownLongOption SPEC KEY)
+# (call cliUnknownShortOption SPEC (dot VALUE KEY))
+# (call cliUnknownLongOption SPEC (dot VALUE KEY))
 proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
   dest.withTree CallX, NoLineInfo:
     if shortOption:
@@ -434,16 +437,16 @@ proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
     else:
       dest.addIdent("cliUnknownLongOption")
     dest.addStrLit(spec.rawSpec)
-    dest.addIdent("key")
+    emitDotExpr dest, "p", "key"
 
 # (if
-#   (elif (infix "==" VAL CHOICE) (stmts (asgn (dot result FIELD) ENUM_VALUE)))+
-#   (else (stmts (call cliInvalidValue SPEC OPTION VAL)))
+#   (elif (infix "==" (dot p val) CHOICE) (stmts (asgn (dot result FIELD) ENUM_VALUE)))+
+#   (else (stmts (call cliInvalidValue SPEC OPTION (dot p val))))
 proc emitEnumOptionBody(dest: var Tree; spec: CliSpec; option: OptionSpec) =
   dest.withTree IfS, NoLineInfo:
     for i, choice in option.choices:
       dest.withTree ElifU, NoLineInfo:
-        emitEqIdentString dest, "val", choice
+        emitEqFieldString dest, "p", "val", choice
         dest.withTree StmtsS, NoLineInfo:
           emitAssignResultFieldIdent dest, option.fieldName, option.enumNames[i]
     dest.withTree ElseU, NoLineInfo:
@@ -452,24 +455,24 @@ proc emitEnumOptionBody(dest: var Tree; spec: CliSpec; option: OptionSpec) =
           dest.addIdent("cliInvalidValue")
           dest.addStrLit(spec.rawSpec)
           dest.addStrLit("--" & option.longName)
-          dest.addIdent("val")
+          emitDotExpr dest, "p", "val"
 
 # (if
-#   (elif (infix "==" KEY HELP) (stmts (call cliExitHelp SPEC)))?
-#   (elif (infix "==" KEY OPTION_KEY) (stmts OPTION_BODY))*
-#   (else (stmts (call cliUnknown{Short,Long}Option SPEC KEY)))
+#   (elif (infix "==" (dot p key) HELP) (stmts (call cliExitHelp SPEC)))?
+#   (elif (infix "==" (dot p key) OPTION_KEY) (stmts OPTION_BODY))*
+#   (else (stmts (call cliUnknown{Short,Long}Option SPEC (dot p key))))
 proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
   dest.withTree IfS, NoLineInfo:
     if shortOption:
       dest.withTree ElifU, NoLineInfo:
-        emitEqIdentString dest, "key", "h"
+        emitEqFieldString dest, "p", "key", "h"
         dest.withTree StmtsS, NoLineInfo:
           dest.withTree CallX, NoLineInfo:
             dest.addIdent("cliExitHelp")
             dest.addStrLit(spec.rawSpec)
     else:
       dest.withTree ElifU, NoLineInfo:
-        emitEqIdentString dest, "key", "help"
+        emitEqFieldString dest, "p", "key", "help"
         dest.withTree StmtsS, NoLineInfo:
           dest.withTree CallX, NoLineInfo:
             dest.addIdent("cliExitHelp")
@@ -479,11 +482,11 @@ proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
       let key = if shortOption: option.shortName else: option.longName
       if key.len > 0:
         dest.withTree ElifU, NoLineInfo:
-          emitEqIdentString dest, "key", key
+          emitEqFieldString dest, "p", "key", key
           dest.withTree StmtsS, NoLineInfo:
             case option.kind
             of fkString:
-              emitAssignResultFieldIdent dest, option.fieldName, "val"
+              emitAssignResultFieldFromField dest, option.fieldName, "p", "val"
             of fkBool:
               emitAssignResultFieldTrue dest, option.fieldName
             of fkEnum:
@@ -494,13 +497,13 @@ proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
         emitUnknownOption dest, spec, shortOption
 
 # (if
-#   (elif (infix "==" KEY COMMAND) (stmts (asgn (dot result command) COMMAND_ENUM)))+
-#   (else (stmts (call cliUnexpectedArgument SPEC KEY)))
+#   (elif (infix "==" (dot p key) COMMAND) (stmts (asgn (dot result command) COMMAND_ENUM)))+
+#   (else (stmts (call cliUnexpectedArgument SPEC (dot p key))))
 proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
   dest.withTree IfS, NoLineInfo:
     for command in spec.commands:
       dest.withTree ElifU, NoLineInfo:
-        emitEqIdentString dest, "key", command.name
+        emitEqFieldString dest, "p", "key", command.name
         dest.withTree StmtsS, NoLineInfo:
           emitAssignResultFieldIdent dest, "command", command.enumName
     dest.withTree ElseU, NoLineInfo:
@@ -508,11 +511,11 @@ proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
         dest.withTree CallX, NoLineInfo:
           dest.addIdent("cliUnexpectedArgument")
           dest.addStrLit(spec.rawSpec)
-          dest.addIdent("key")
+          emitDotExpr dest, "p", "key"
 
 # (if
 #   (elif (infix "==" argSlot INT) (stmts SLOT_BODY (cmd inc argSlot)))+
-#   (else (stmts (call cliUnexpectedArgument SPEC KEY))))
+#   (else (stmts (call cliUnexpectedArgument SPEC (dot p key)))))
 proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
   dest.withTree IfS, NoLineInfo:
     for i, slot in spec.slots:
@@ -524,7 +527,7 @@ proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
         dest.withTree StmtsS, NoLineInfo:
           case slot.kind
           of uskArgument:
-            emitAssignResultFieldIdent dest, spec.args[slot.index].fieldName, "key"
+            emitAssignResultFieldFromField dest, spec.args[slot.index].fieldName, "p", "key"
           of uskCommand:
             emitCommandChoice dest, spec
           emitCallStmt1 dest, "inc", "argSlot"
@@ -533,23 +536,21 @@ proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
         dest.withTree CallX, NoLineInfo:
           dest.addIdent("cliUnexpectedArgument")
           dest.addStrLit(spec.rawSpec)
-          dest.addIdent("key")
+          emitDotExpr dest, "p", "key"
 
 # (proc parseCli . . . (params) CliOptions . .
 #   (stmts
+#     (var p . . OptParser (call initOptParser))
 #     (var argSlot . . int 0)
 #     (asgn result (call CliOptions))
-#     (for
-#       (call getopt)
-#       (unpackflat
-#         (let kind . . . .)
-#         (let key . . . .)
-#         (let val . . . .))
+#     (while true
 #       (stmts
+#         (cmd next p)
+#         (if (elif (infix "==" (dot p kind) cmdEnd) (stmts (break .))))
 #         (if
-#           (elif (infix "==" kind cmdArgument) (stmts ARG_DISPATCH))
-#           (elif (infix "==" kind cmdLongOption) (stmts LONG_OPTION_DISPATCH))
-#           (elif (infix "==" kind cmdShortOption) (stmts SHORT_OPTION_DISPATCH)))))
+#           (elif (infix "==" (dot p kind) cmdArgument) (stmts ARG_DISPATCH))
+#           (elif (infix "==" (dot p kind) cmdLongOption) (stmts LONG_OPTION_DISPATCH))
+#           (elif (infix "==" (dot p kind) cmdShortOption) (stmts SHORT_OPTION_DISPATCH)))))
 #     (if (elif (infix "<" argSlot INT) (stmts (call cliMissingArguments SPEC))))?
 #     (if (elif (infix "==" (dot result command) VERSION_ENUM) (stmts (call cliExitVersion SPEC))))?
 #     result))
@@ -562,28 +563,31 @@ proc emitParseProc(dest: var Tree; spec: CliSpec) =
     dest.addIdent("CliOptions")
     dest.addDots(2)
     dest.withTree StmtsS, NoLineInfo:
+      emitVarDeclCall0 dest, "p", "OptParser", "initOptParser"
       emitVarDeclInt dest, "argSlot", 0
       emitInitResultObject dest
 
-      dest.withTree ForS, NoLineInfo:
-        dest.withTree CallX, NoLineInfo:
-          dest.addIdent("getopt")
-        dest.withTree UnpackflatU, NoLineInfo:
-          emitUnpackLet dest, "kind"
-          emitUnpackLet dest, "key"
-          emitUnpackLet dest, "val"
+      dest.withTree WhileS, NoLineInfo:
+        dest.addIdent("true")
         dest.withTree StmtsS, NoLineInfo:
+          emitCallStmt1 dest, "next", "p"
           dest.withTree IfS, NoLineInfo:
             dest.withTree ElifU, NoLineInfo:
-              emitEqIdentEnum dest, "kind", "cmdArgument"
+              emitEqFieldEnum dest, "p", "kind", "cmdEnd"
+              dest.withTree StmtsS, NoLineInfo:
+                dest.withTree BreakS, NoLineInfo:
+                  dest.addDotToken()
+          dest.withTree IfS, NoLineInfo:
+            dest.withTree ElifU, NoLineInfo:
+              emitEqFieldEnum dest, "p", "kind", "cmdArgument"
               dest.withTree StmtsS, NoLineInfo:
                 emitArgumentDispatch dest, spec
             dest.withTree ElifU, NoLineInfo:
-              emitEqIdentEnum dest, "kind", "cmdLongOption"
+              emitEqFieldEnum dest, "p", "kind", "cmdLongOption"
               dest.withTree StmtsS, NoLineInfo:
                 emitOptionDispatch dest, spec, false
             dest.withTree ElifU, NoLineInfo:
-              emitEqIdentEnum dest, "kind", "cmdShortOption"
+              emitEqFieldEnum dest, "p", "kind", "cmdShortOption"
               dest.withTree StmtsS, NoLineInfo:
                 emitOptionDispatch dest, spec, true
 
