@@ -92,14 +92,13 @@ proc toCamelCase(s: string): string =
       result.add word.substr(1)
 
 proc parseSectionHeader(line: string): SectionKind =
-  let stripped = line.strip()
-  if stripped.startsWith("Usage:"):
+  if line.startsWith("Usage:"):
     result = skUsage
-  elif stripped.startsWith("Arguments:"):
+  elif line.startsWith("Arguments:"):
     result = skArguments
-  elif stripped.startsWith("Commands:"):
+  elif line.startsWith("Commands:"):
     result = skCommands
-  elif stripped.startsWith("Options:"):
+  elif line.startsWith("Options:"):
     result = skOptions
   else:
     result = skNone
@@ -117,15 +116,27 @@ proc splitEntry(line: string): tuple[left, right: string] =
   if splitAt < 0:
     result = (stripped, "")
   else:
-    result.left = stripped.substr(0, splitAt - 1).strip()
+    result.left = stripped.substr(0, splitAt - 1)
     result.right = stripped.substr(splitAt).strip()
+
+proc parseFirstToken(s: string): string =
+  var endAt = 0
+  while endAt < s.len and s[endAt] notin Whitespace:
+    inc endAt
+
+  if endAt == 0:
+    result = ""
+  elif endAt >= s.len:
+    result = s
+  else:
+    result = s.substr(0, endAt - 1)
 
 proc parseArgument(spec: var CliSpec; line: string) =
   let entry = splitEntry(line)
   if entry.left.len == 0:
     return
   spec.args.add ArgSpec(
-    name: entry.left.splitWhitespace()[0],
+    name: parseFirstToken(entry.left),
     fieldName: toCamelCase(entry.left)
   )
 
@@ -133,7 +144,7 @@ proc parseCommand(spec: var CliSpec; line: string) =
   let entry = splitEntry(line)
   if entry.left.len == 0:
     return
-  let name = entry.left.splitWhitespace()[0]
+  let name = parseFirstToken(entry.left)
   spec.commands.add CommandSpec(
     name: name,
     enumName: "cmd" & toPascalCase(name)
