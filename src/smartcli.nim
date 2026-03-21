@@ -1,39 +1,5 @@
 import std / [parseopt, strutils, syncio]
-
-type
-  CliTokenKind* = enum
-    ctkEnd
-    ctkArgument
-    ctkLongOption
-    ctkShortOption
-
-  CliToken* = object
-    kind*: CliTokenKind
-    key*: string
-    val*: string
-
-  CliState* = object
-    parser: OptParser
-
-proc initCliState*(): CliState =
-  CliState(parser: initOptParser())
-
-proc nextToken*(state: var CliState; token: var CliToken): bool =
-  next state.parser
-  token.key = state.parser.key
-  token.val = state.parser.val
-  case state.parser.kind
-  of cmdEnd:
-    token.kind = ctkEnd
-    token.key = ""
-    token.val = ""
-  of cmdArgument:
-    token.kind = ctkArgument
-  of cmdLongOption:
-    token.kind = ctkLongOption
-  of cmdShortOption:
-    token.kind = ctkShortOption
-  result = token.kind != ctkEnd
+export parseopt
 
 proc writeSpec(spec: string) =
   stdout.write spec
