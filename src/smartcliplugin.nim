@@ -53,6 +53,7 @@ proc flushWord(current: var string; words: var seq[string]) =
     current = ""
 
 proc splitWords(s: string): seq[string] =
+  result = @[]
   var current = ""
   for c in s:
     if c.isAlphaNumeric:
@@ -62,6 +63,7 @@ proc splitWords(s: string): seq[string] =
   flushWord current, result
 
 proc toPascalCase(s: string): string =
+  result = ""
   let words = splitWords(s)
   for word in words:
     if word.len > 0:
@@ -90,6 +92,7 @@ proc sectionKind(line: string): string =
     result = ""
 
 proc splitEntry(line: string): tuple[left, right: string] =
+  result = ("", "")
   let stripped = line.strip()
   var splitAt = -1
   var i = 0
@@ -225,7 +228,7 @@ proc parseUsage(spec: var CliSpec; usageLine: string) =
       spec.hasCommandSlot = true
 
 proc parseSpec(rawSpec: string): CliSpec =
-  result.rawSpec = rawSpec
+  result = CliSpec(rawSpec: rawSpec)
   var currentSection = ""
   var usageLine = ""
 
@@ -278,352 +281,309 @@ proc extractSpec(n: Node): string =
     fail("cliapp expects a string literal")
   result = pool.strings[n.litId]
 
-proc emitTypeRef(b: var Builder; typeName: string) =
-  b.addIdent(typeName)
+proc addDots(dest: var Tree; count: int) =
+  for _ in 0 ..< count:
+    dest.addDotToken()
 
-proc emitMetaNum(b: var Builder; value: string) =
-  b.addRaw(" " & value)
+proc emitTypeRef(dest: var Tree; typeName: string) =
+  dest.addIdent(typeName)
 
-proc emitDotExpr(b: var Builder; valueName, fieldName: string) =
-  b.withTree "dot":
-    b.addIdent(valueName)
-    emitMetaNum b, $(fieldName.len + 2)
-    b.addIdent(fieldName)
+proc emitDotExpr(dest: var Tree; valueName, fieldName: string) =
+  dest.withTree DotX, NoLineInfo:
+    dest.addIdent(valueName)
+    dest.addIdent(fieldName)
 
-proc emitEqFieldEnum(b: var Builder; valueName, fieldName, enumName: string) =
-  b.withTree "infix":
-    b.addIdent("==")
-    emitDotExpr b, valueName, fieldName
-    emitMetaNum b, "1"
-    b.addIdent enumName
+proc emitEqFieldEnum(dest: var Tree; valueName, fieldName, enumName: string) =
+  dest.withTree InfixX, NoLineInfo:
+    dest.addIdent("==")
+    emitDotExpr dest, valueName, fieldName
+    dest.addIdent(enumName)
 
-proc emitEqFieldString(b: var Builder; valueName, fieldName, strValue: string) =
-  b.withTree "infix":
-    b.addIdent("==")
-    emitDotExpr b, valueName, fieldName
-    emitMetaNum b, $(fieldName.len + 2)
-    b.addStrLit(strValue)
+proc emitEqFieldString(dest: var Tree; valueName, fieldName, strValue: string) =
+  dest.withTree InfixX, NoLineInfo:
+    dest.addIdent("==")
+    emitDotExpr dest, valueName, fieldName
+    dest.addStrLit(strValue)
 
-proc emitLtIntExpr(b: var Builder; name: string; value: int) =
-  b.withTree "infix":
-    b.addIdent("<")
-    b.addIdent(name)
-    emitMetaNum b, "6"
-    b.addIntLit(value)
+proc emitLtIntExpr(dest: var Tree; name: string; value: int) =
+  dest.withTree InfixX, NoLineInfo:
+    dest.addIdent("<")
+    dest.addIdent(name)
+    dest.addIntLit(value)
 
-proc emitAssignResultFieldFromToken(b: var Builder; fieldName, tokenField: string) =
-  b.withTree "asgn":
-    emitDotExpr b, "result", fieldName
-    emitMetaNum b, "7"
-    emitDotExpr b, "token", tokenField
+proc emitAssignResultFieldFromToken(dest: var Tree; fieldName, tokenField: string) =
+  dest.withTree AsgnS, NoLineInfo:
+    emitDotExpr dest, "result", fieldName
+    dest.withTree DotX, NoLineInfo:
+      dest.addIdent("token")
+      dest.addIdent(tokenField)
 
-proc emitAssignResultFieldIdent(b: var Builder; fieldName, valueName: string) =
-  b.withTree "asgn":
-    emitDotExpr b, "result", fieldName
-    emitMetaNum b, "2"
-    b.addIdent(valueName)
+proc emitAssignResultFieldIdent(dest: var Tree; fieldName, valueName: string) =
+  dest.withTree AsgnS, NoLineInfo:
+    emitDotExpr dest, "result", fieldName
+    dest.addIdent(valueName)
 
-proc emitAssignResultFieldTrue(b: var Builder; fieldName: string) =
-  b.withTree "asgn":
-    emitDotExpr b, "result", fieldName
-    emitMetaNum b, "2"
-    b.addIdent("true")
+proc emitAssignResultFieldTrue(dest: var Tree; fieldName: string) =
+  dest.withTree AsgnS, NoLineInfo:
+    emitDotExpr dest, "result", fieldName
+    dest.addIdent("true")
 
-proc emitInitResultObject(b: var Builder) =
-  b.withTree "asgn":
-    b.addIdent("result")
-    emitMetaNum b, "12"
-    b.withTree "call":
-      b.addIdent("CliOptions")
+proc emitInitResultObject(dest: var Tree) =
+  dest.withTree AsgnS, NoLineInfo:
+    dest.addIdent("result")
+    dest.withTree CallX, NoLineInfo:
+      dest.addIdent("CliOptions")
 
-proc emitFieldDecl(b: var Builder; fieldName, typeName: string) =
-  b.withTree "fld":
-    b.addIdent(fieldName)
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, $(fieldName.len + 2)
-    emitTypeRef b, typeName
-    b.addEmpty()
+proc emitFieldDecl(dest: var Tree; fieldName, typeName: string) =
+  dest.withTree FldU, NoLineInfo:
+    dest.addIdent(fieldName)
+    dest.addDots(2)
+    emitTypeRef dest, typeName
+    dest.addDotToken()
 
-proc emitEnumDecl(b: var Builder; typeName, noneName: string;
+proc emitEnumField(dest: var Tree; fieldName: string) =
+  dest.withTree EfldU, NoLineInfo:
+    dest.addIdent(fieldName)
+    dest.addDots(4)
+
+proc emitEnumDecl(dest: var Tree; typeName, noneName: string;
     enumNames: openArray[string]) =
-  b.withTree "type":
-    b.addIdent(typeName)
-    b.addEmpty()
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, $(typeName.len + 1)
-    b.withTree "enum":
-      b.addEmpty()
-      b.withTree "efld":
-        b.addIdent(noneName)
-        b.addEmpty()
-        b.addEmpty()
-        b.addEmpty()
-        b.addEmpty()
+  dest.withTree TypeS, NoLineInfo:
+    dest.addIdent(typeName)
+    dest.addDots(3)
+    dest.withTree EnumT, NoLineInfo:
+      dest.addDotToken()
+      emitEnumField dest, noneName
       for enumName in enumNames:
-        b.withTree "efld":
-          b.addIdent(enumName)
-          b.addEmpty()
-          b.addEmpty()
-          b.addEmpty()
-          b.addEmpty()
+        emitEnumField dest, enumName
 
-proc emitOptionsDecl(b: var Builder; spec: CliSpec) =
+proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
   if spec.hasCommandSlot:
     var commandNames: seq[string] = @[]
     for command in spec.commands:
       commandNames.add command.enumName
-    emitEnumDecl b, "CliCommand", "cliCommandNone", commandNames
+    emitEnumDecl dest, "CliCommand", "cliCommandNone", commandNames
 
   for option in spec.options:
     if option.kind == fkEnum:
-      emitEnumDecl b, option.enumTypeName,
+      emitEnumDecl dest, option.enumTypeName,
         "cli" & toPascalCase(option.fieldName) & "None",
         option.enumNames
 
-  b.withTree "type":
-    b.addIdent("CliOptions")
-    b.addEmpty()
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, "11"
-    b.withTree "object":
-      b.addEmpty()
+  dest.withTree TypeS, NoLineInfo:
+    dest.addIdent("CliOptions")
+    dest.addDots(3)
+    dest.withTree ObjectT, NoLineInfo:
+      dest.addDotToken()
       for arg in spec.args:
-        emitFieldDecl b, arg.fieldName, "string"
+        emitFieldDecl dest, arg.fieldName, "string"
       if spec.hasCommandSlot:
-        emitFieldDecl b, "command", "CliCommand"
+        emitFieldDecl dest, "command", "CliCommand"
       for option in spec.options:
         case option.kind
         of fkString:
-          emitFieldDecl b, option.fieldName, "string"
+          emitFieldDecl dest, option.fieldName, "string"
         of fkBool:
-          emitFieldDecl b, option.fieldName, "bool"
+          emitFieldDecl dest, option.fieldName, "bool"
         of fkEnum:
-          emitFieldDecl b, option.fieldName, option.enumTypeName
+          emitFieldDecl dest, option.fieldName, option.enumTypeName
 
-proc emitVarDeclCall0(b: var Builder; name, typeName, callee: string) =
-  b.withTree "var":
-    b.addIdent(name)
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, $(name.len + 2)
-    emitTypeRef b, typeName
-    emitMetaNum b, $(name.len + typeName.len + callee.len + 9)
-    b.withTree "call":
-      b.addIdent(callee)
+proc emitVarDeclCall0(dest: var Tree; name, typeName, callee: string) =
+  dest.withTree VarS, NoLineInfo:
+    dest.addIdent(name)
+    dest.addDots(2)
+    emitTypeRef dest, typeName
+    dest.withTree CallX, NoLineInfo:
+      dest.addIdent(callee)
 
-proc emitVarDeclInt(b: var Builder; name: string; value: int) =
-  b.withTree "var":
-    b.addIdent(name)
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, $(name.len + 2)
-    b.addIdent("int")
-    emitMetaNum b, $(name.len + 8)
-    b.addIntLit(value)
+proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
+  dest.withTree VarS, NoLineInfo:
+    dest.addIdent(name)
+    dest.addDots(2)
+    dest.addIdent("int")
+    dest.addIntLit(value)
 
-proc emitCallStmt1(b: var Builder; name: string; arg: string; isString = false) =
-  b.withTree "cmd":
-    b.addIdent(name)
-    emitMetaNum b, "4"
+proc emitCallStmt1(dest: var Tree; name, arg: string; isString = false) =
+  dest.withTree CmdS, NoLineInfo:
+    dest.addIdent(name)
     if isString:
-      b.addStrLit(arg)
+      dest.addStrLit(arg)
     else:
-      b.addIdent(arg)
+      dest.addIdent(arg)
 
-proc emitUnknownOption(b: var Builder; spec: CliSpec; shortOption: bool) =
-  b.withTree "call":
+proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
+  dest.withTree CallX, NoLineInfo:
     if shortOption:
-      b.addIdent("cliUnknownShortOption")
+      dest.addIdent("cliUnknownShortOption")
     else:
-      b.addIdent("cliUnknownLongOption")
-    emitMetaNum b, "1"
-    b.addStrLit(spec.rawSpec)
-    emitMetaNum b, "12"
-    emitDotExpr b, "token", "key"
+      dest.addIdent("cliUnknownLongOption")
+    dest.addStrLit(spec.rawSpec)
+    dest.withTree DotX, NoLineInfo:
+      dest.addIdent("token")
+      dest.addIdent("key")
 
-proc emitEnumOptionBody(b: var Builder; spec: CliSpec; option: OptionSpec) =
-  b.withTree "if":
+proc emitEnumOptionBody(dest: var Tree; spec: CliSpec; option: OptionSpec) =
+  dest.withTree IfS, NoLineInfo:
     for i, choice in option.choices:
-      b.withTree "elif":
-        emitEqFieldString b, "token", "val", choice
-        b.withTree "stmts":
-          emitAssignResultFieldIdent b, option.fieldName, option.enumNames[i]
-    b.withTree "else":
-      b.withTree "stmts":
-        b.withTree "call":
-          b.addIdent("cliInvalidValue")
-          emitMetaNum b, "1"
-          b.addStrLit(spec.rawSpec)
-          emitMetaNum b, "7"
-          b.addStrLit("--" & option.longName)
-          emitMetaNum b, "22"
-          emitDotExpr b, "token", "val"
+      dest.withTree ElifU, NoLineInfo:
+        emitEqFieldString dest, "token", "val", choice
+        dest.withTree StmtsS, NoLineInfo:
+          emitAssignResultFieldIdent dest, option.fieldName, option.enumNames[i]
+    dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        dest.withTree CallX, NoLineInfo:
+          dest.addIdent("cliInvalidValue")
+          dest.addStrLit(spec.rawSpec)
+          dest.addStrLit("--" & option.longName)
+          dest.withTree DotX, NoLineInfo:
+            dest.addIdent("token")
+            dest.addIdent("val")
 
-proc emitOptionDispatch(b: var Builder; spec: CliSpec; shortOption: bool) =
-  b.withTree "if":
+proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
+  dest.withTree IfS, NoLineInfo:
     if shortOption:
-      b.withTree "elif":
-        emitEqFieldString b, "token", "key", "h"
-        b.withTree "stmts":
-          b.withTree "call":
-            b.addIdent("cliExitHelp")
-            emitMetaNum b, "1"
-            b.addStrLit(spec.rawSpec)
+      dest.withTree ElifU, NoLineInfo:
+        emitEqFieldString dest, "token", "key", "h"
+        dest.withTree StmtsS, NoLineInfo:
+          dest.withTree CallX, NoLineInfo:
+            dest.addIdent("cliExitHelp")
+            dest.addStrLit(spec.rawSpec)
     else:
-      b.withTree "elif":
-        emitEqFieldString b, "token", "key", "help"
-        b.withTree "stmts":
-          b.withTree "call":
-            b.addIdent("cliExitHelp")
-            emitMetaNum b, "1"
-            b.addStrLit(spec.rawSpec)
+      dest.withTree ElifU, NoLineInfo:
+        emitEqFieldString dest, "token", "key", "help"
+        dest.withTree StmtsS, NoLineInfo:
+          dest.withTree CallX, NoLineInfo:
+            dest.addIdent("cliExitHelp")
+            dest.addStrLit(spec.rawSpec)
 
     for option in spec.options:
       let key = if shortOption: option.shortName else: option.longName
-      if key.len == 0:
-        continue
-      b.withTree "elif":
-        emitEqFieldString b, "token", "key", key
-        b.withTree "stmts":
-          case option.kind
-          of fkString:
-            emitAssignResultFieldFromToken b, option.fieldName, "val"
-          of fkBool:
-            emitAssignResultFieldTrue b, option.fieldName
-          of fkEnum:
-            emitEnumOptionBody b, spec, option
+      if key.len > 0:
+        dest.withTree ElifU, NoLineInfo:
+          emitEqFieldString dest, "token", "key", key
+          dest.withTree StmtsS, NoLineInfo:
+            case option.kind
+            of fkString:
+              emitAssignResultFieldFromToken dest, option.fieldName, "val"
+            of fkBool:
+              emitAssignResultFieldTrue dest, option.fieldName
+            of fkEnum:
+              emitEnumOptionBody dest, spec, option
 
-    b.withTree "else":
-      b.withTree "stmts":
-        emitUnknownOption b, spec, shortOption
+    dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        emitUnknownOption dest, spec, shortOption
 
-proc emitCommandChoice(b: var Builder; spec: CliSpec) =
-  b.withTree "if":
+proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
+  dest.withTree IfS, NoLineInfo:
     for command in spec.commands:
-      b.withTree "elif":
-        emitEqFieldString b, "token", "key", command.name
-        b.withTree "stmts":
-          emitAssignResultFieldIdent b, "command", command.enumName
-    b.withTree "else":
-      b.withTree "stmts":
-        b.withTree "call":
-          b.addIdent("cliUnexpectedArgument")
-          emitMetaNum b, "1"
-          b.addStrLit(spec.rawSpec)
-          emitMetaNum b, "12"
-          emitDotExpr b, "token", "key"
+      dest.withTree ElifU, NoLineInfo:
+        emitEqFieldString dest, "token", "key", command.name
+        dest.withTree StmtsS, NoLineInfo:
+          emitAssignResultFieldIdent dest, "command", command.enumName
+    dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        dest.withTree CallX, NoLineInfo:
+          dest.addIdent("cliUnexpectedArgument")
+          dest.addStrLit(spec.rawSpec)
+          dest.withTree DotX, NoLineInfo:
+            dest.addIdent("token")
+            dest.addIdent("key")
 
-proc emitArgumentDispatch(b: var Builder; spec: CliSpec) =
-  b.withTree "if":
+proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
+  dest.withTree IfS, NoLineInfo:
     for i, slot in spec.slots:
-      b.withTree "elif":
-        b.withTree "infix":
-          b.addIdent("==")
-          b.addIdent("argSlot")
-          emitMetaNum b, "3"
-          b.addIntLit(i)
-        b.withTree "stmts":
+      dest.withTree ElifU, NoLineInfo:
+        dest.withTree InfixX, NoLineInfo:
+          dest.addIdent("==")
+          dest.addIdent("argSlot")
+          dest.addIntLit(i)
+        dest.withTree StmtsS, NoLineInfo:
           case slot.kind
           of uskArgument:
-            emitAssignResultFieldFromToken b, spec.args[slot.index].fieldName, "key"
+            emitAssignResultFieldFromToken dest, spec.args[slot.index].fieldName, "key"
           of uskCommand:
-            emitCommandChoice b, spec
-          emitCallStmt1 b, "inc", "argSlot"
-    b.withTree "else":
-      b.withTree "stmts":
-        b.withTree "call":
-          b.addIdent("cliUnexpectedArgument")
-          emitMetaNum b, "1"
-          b.addStrLit(spec.rawSpec)
-          emitMetaNum b, "12"
-          emitDotExpr b, "token", "key"
+            emitCommandChoice dest, spec
+          emitCallStmt1 dest, "inc", "argSlot"
+    dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        dest.withTree CallX, NoLineInfo:
+          dest.addIdent("cliUnexpectedArgument")
+          dest.addStrLit(spec.rawSpec)
+          dest.withTree DotX, NoLineInfo:
+            dest.addIdent("token")
+            dest.addIdent("key")
 
-proc emitParseProc(b: var Builder; spec: CliSpec) =
-  b.withTree "proc":
-    emitMetaNum b, "5"
-    b.addIdent("parseCli")
-    b.addEmpty()
-    b.addEmpty()
-    b.addEmpty()
-    emitMetaNum b, $(len("parseCli") + 5)
-    b.withTree "params":
+proc emitParseProc(dest: var Tree; spec: CliSpec) =
+  dest.withTree ProcS, NoLineInfo:
+    dest.addIdent("parseCli")
+    dest.addDots(3)
+    dest.withTree ParamsU, NoLineInfo:
       discard
-    emitMetaNum b, "4"
-    b.addIdent("CliOptions")
-    b.addEmpty()
-    b.addEmpty()
-    b.addRaw(" 2,1")
-    b.withTree "stmts":
-      emitVarDeclCall0 b, "state", "CliState", "initCliState"
-      emitVarDeclCall0 b, "token", "CliToken", "CliToken"
-      emitVarDeclInt b, "argSlot", 0
-      emitInitResultObject b
+    dest.addIdent("CliOptions")
+    dest.addDots(2)
+    dest.withTree StmtsS, NoLineInfo:
+      emitVarDeclCall0 dest, "state", "CliState", "initCliState"
+      emitVarDeclCall0 dest, "token", "CliToken", "CliToken"
+      emitVarDeclInt dest, "argSlot", 0
+      emitInitResultObject dest
 
-      b.withTree "while":
-        emitMetaNum b, "15"
-        b.withTree "call":
-          b.addIdent("nextToken")
-          emitMetaNum b, "1"
-          b.addIdent("state")
-          emitMetaNum b, "8"
-          b.addIdent("token")
-        b.addRaw(" 2,1")
-        b.withTree "stmts":
-          b.withTree "if":
-            b.withTree "elif":
-              emitEqFieldEnum b, "token", "kind", "ctkArgument"
-              b.withTree "stmts":
-                emitArgumentDispatch b, spec
-            b.withTree "elif":
-              emitEqFieldEnum b, "token", "kind", "ctkLongOption"
-              b.withTree "stmts":
-                emitOptionDispatch b, spec, false
-            b.withTree "elif":
-              emitEqFieldEnum b, "token", "kind", "ctkShortOption"
-              b.withTree "stmts":
-                emitOptionDispatch b, spec, true
+      dest.withTree WhileS, NoLineInfo:
+        dest.withTree CallX, NoLineInfo:
+          dest.addIdent("nextToken")
+          dest.addIdent("state")
+          dest.addIdent("token")
+        dest.withTree StmtsS, NoLineInfo:
+          dest.withTree IfS, NoLineInfo:
+            dest.withTree ElifU, NoLineInfo:
+              emitEqFieldEnum dest, "token", "kind", "ctkArgument"
+              dest.withTree StmtsS, NoLineInfo:
+                emitArgumentDispatch dest, spec
+            dest.withTree ElifU, NoLineInfo:
+              emitEqFieldEnum dest, "token", "kind", "ctkLongOption"
+              dest.withTree StmtsS, NoLineInfo:
+                emitOptionDispatch dest, spec, false
+            dest.withTree ElifU, NoLineInfo:
+              emitEqFieldEnum dest, "token", "kind", "ctkShortOption"
+              dest.withTree StmtsS, NoLineInfo:
+                emitOptionDispatch dest, spec, true
 
       if spec.slots.len > 0:
-        b.withTree "if":
-          b.withTree "elif":
-            emitLtIntExpr b, "argSlot", spec.slots.len
-            b.withTree "stmts":
-              b.withTree "call":
-                b.addIdent("cliMissingArguments")
-                emitMetaNum b, "1"
-                b.addStrLit(spec.rawSpec)
+        dest.withTree IfS, NoLineInfo:
+          dest.withTree ElifU, NoLineInfo:
+            emitLtIntExpr dest, "argSlot", spec.slots.len
+            dest.withTree StmtsS, NoLineInfo:
+              dest.withTree CallX, NoLineInfo:
+                dest.addIdent("cliMissingArguments")
+                dest.addStrLit(spec.rawSpec)
 
       if spec.hasCommandSlot:
         for command in spec.commands:
           if command.name == "version":
-            b.withTree "if":
-              b.withTree "elif":
-                emitEqFieldEnum b, "result", "command", command.enumName
-                b.withTree "stmts":
-                  b.withTree "call":
-                    b.addIdent("cliExitVersion")
-                    emitMetaNum b, "1"
-                    b.addStrLit(spec.rawSpec)
+            dest.withTree IfS, NoLineInfo:
+              dest.withTree ElifU, NoLineInfo:
+                emitEqFieldEnum dest, "result", "command", command.enumName
+                dest.withTree StmtsS, NoLineInfo:
+                  dest.withTree CallX, NoLineInfo:
+                    dest.addIdent("cliExitVersion")
+                    dest.addStrLit(spec.rawSpec)
             break
 
-      b.addIdent("result")
+      dest.addIdent("result")
 
-proc generate(spec: CliSpec): string =
-  var b = nifbuilder.open(2000)
-  b.withTree "stmts":
-    b.withTree "block":
-      b.addEmpty()
-      b.withTree "stmts":
-        emitOptionsDecl b, spec
-        emitParseProc b, spec
-        b.withTree "call":
-          b.addIdent("parseCli")
-  result = extract(b)
+proc generate(spec: CliSpec; info: LineInfo): Tree =
+  result = createTree()
+  result.withTree StmtsS, info:
+    result.withTree BlockS, info:
+      result.addDotToken()
+      result.withTree StmtsS, info:
+        emitOptionsDecl result, spec
+        emitParseProc result, spec
+        result.withTree CallX, NoLineInfo:
+          result.addIdent("parseCli")
 
 var input = loadTree()
-let rawSpec = extractSpec(beginRead(input))
+let root = beginRead(input)
+let rawSpec = extractSpec(root)
 let spec = parseSpec(rawSpec)
-writeFile os.paramStr(2), generate(spec)
+saveTree generate(spec, root.info), os.paramStr(2)

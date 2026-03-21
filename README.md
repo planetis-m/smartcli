@@ -35,11 +35,11 @@ Options:
   -v, --verbose     Enable verbose output
   -h, --help        Show this help and exit"""
 
-stdout.writeLine options.input
-stdout.writeLine options.output
-stdout.writeLine $options.verbose
-stdout.writeLine $options.command
-stdout.writeLine $options.mode
+echo options.input
+echo options.output
+echo options.verbose
+echo options.command
+echo options.mode
 ```
 
 ## DSL Rules

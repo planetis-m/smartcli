@@ -18,7 +18,7 @@ Options:
   -v, --verbose     Enable verbose output
   -h, --help        Show this help and exit"""
 
-stdout.writeLine "input: " & options.input
-stdout.writeLine "output: " & options.output
-stdout.writeLine "verbose: " & $options.verbose
-stdout.writeLine "command: " & $options.command
+echo "input: ", options.input
+echo "output: ", options.output
+echo "verbose: ", options.verbose
+echo "command: ", options.command

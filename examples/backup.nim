@@ -20,8 +20,8 @@ Options:
   -v, --verbose      Enable verbose output
   -h, --help         Show this help and exit"""
 
-stdout.writeLine "source: " & options.source
-stdout.writeLine "dest: " & options.dest
-stdout.writeLine "mode: " & $options.mode
-stdout.writeLine "verbose: " & $options.verbose
-stdout.writeLine "command: " & $options.command
+echo "source: ", options.source
+echo "dest: ", options.dest
+echo "mode: ", options.mode
+echo "verbose: ", options.verbose
+echo "command: ", options.command
