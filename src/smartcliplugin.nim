@@ -54,42 +54,41 @@ type
 proc fail(msg: string) {.noreturn.} =
   quit "[smartcli] " & msg
 
-proc flushWord(current: var string; words: var seq[string]) =
-  if current.len > 0:
-    words.add current
-    current = ""
-
-proc splitWords(s: string): seq[string] =
-  result = @[]
-  var current = ""
+proc toPascalCase(s: string): string =
+  result = newStringOfCap(s.len)
+  var upperNext = true
   for c in s:
     if c.isAlphaNumeric:
-      current.add c.toLowerAscii
+      let lower = c.toLowerAscii
+      if upperNext:
+        result.add lower.toUpperAscii
+        upperNext = false
+      else:
+        result.add lower
     else:
-      flushWord current, result
-  flushWord current, result
-
-proc toPascalCase(s: string): string =
-  result = ""
-  let words = splitWords(s)
-  for word in words:
-    if word.len > 0:
-      result.add word[0].toUpperAscii
-      if word.len > 1:
-        result.add word.substr(1)
+      upperNext = true
   if result.len == 0:
     result = "Value"
 
 proc toCamelCase(s: string): string =
-  let words = splitWords(s)
-  if words.len == 0:
-    return "value"
-  result = words[0]
-  for i in 1 ..< words.len:
-    let word = words[i]
-    result.add word[0].toUpperAscii
-    if word.len > 1:
-      result.add word.substr(1)
+  result = newStringOfCap(s.len)
+  var seenWord = false
+  var upperNext = false
+  for c in s:
+    if c.isAlphaNumeric:
+      let lower = c.toLowerAscii
+      if not seenWord:
+        result.add lower
+        seenWord = true
+      elif upperNext:
+        result.add lower.toUpperAscii
+        upperNext = false
+      else:
+        result.add lower
+    elif seenWord:
+      upperNext = true
+  if result.len == 0:
+    result = "value"
 
 proc parseSectionHeader(line: string): SectionKind =
   if line.startsWith("Usage:"):
