@@ -285,32 +285,38 @@ proc addDots(dest: var Tree; count: int) =
   for _ in 0 ..< count:
     dest.addDotToken()
 
+# TYPE
 proc emitTypeRef(dest: var Tree; typeName: string) =
   dest.addIdent(typeName)
 
+# (dot VALUE FIELD)
 proc emitDotExpr(dest: var Tree; valueName, fieldName: string) =
   dest.withTree DotX, NoLineInfo:
     dest.addIdent(valueName)
     dest.addIdent(fieldName)
 
+# (infix "==" (dot VALUE FIELD) ENUM)
 proc emitEqFieldEnum(dest: var Tree; valueName, fieldName, enumName: string) =
   dest.withTree InfixX, NoLineInfo:
     dest.addIdent("==")
     emitDotExpr dest, valueName, fieldName
     dest.addIdent(enumName)
 
+# (infix "==" (dot VALUE FIELD) STR)
 proc emitEqFieldString(dest: var Tree; valueName, fieldName, strValue: string) =
   dest.withTree InfixX, NoLineInfo:
     dest.addIdent("==")
     emitDotExpr dest, valueName, fieldName
     dest.addStrLit(strValue)
 
+# (infix "<" NAME INT)
 proc emitLtIntExpr(dest: var Tree; name: string; value: int) =
   dest.withTree InfixX, NoLineInfo:
     dest.addIdent("<")
     dest.addIdent(name)
     dest.addIntLit(value)
 
+# (asgn (dot result FIELD) (dot token TOKEN_FIELD))
 proc emitAssignResultFieldFromToken(dest: var Tree; fieldName, tokenField: string) =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
@@ -318,22 +324,26 @@ proc emitAssignResultFieldFromToken(dest: var Tree; fieldName, tokenField: strin
       dest.addIdent("token")
       dest.addIdent(tokenField)
 
+# (asgn (dot result FIELD) VALUE)
 proc emitAssignResultFieldIdent(dest: var Tree; fieldName, valueName: string) =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
     dest.addIdent(valueName)
 
+# (asgn (dot result FIELD) true)
 proc emitAssignResultFieldTrue(dest: var Tree; fieldName: string) =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
     dest.addIdent("true")
 
+# (asgn result (call CliOptions))
 proc emitInitResultObject(dest: var Tree) =
   dest.withTree AsgnS, NoLineInfo:
     dest.addIdent("result")
     dest.withTree CallX, NoLineInfo:
       dest.addIdent("CliOptions")
 
+# (fld FIELD . . TYPE .)
 proc emitFieldDecl(dest: var Tree; fieldName, typeName: string) =
   dest.withTree FldU, NoLineInfo:
     dest.addIdent(fieldName)
@@ -341,11 +351,13 @@ proc emitFieldDecl(dest: var Tree; fieldName, typeName: string) =
     emitTypeRef dest, typeName
     dest.addDotToken()
 
+# (efld FIELD . . . .)
 proc emitEnumField(dest: var Tree; fieldName: string) =
   dest.withTree EfldU, NoLineInfo:
     dest.addIdent(fieldName)
     dest.addDots(4)
 
+# (type TYPE . . . (enum . (efld NONE . . . .) (efld VALUE . . . .)*))
 proc emitEnumDecl(dest: var Tree; typeName, noneName: string;
     enumNames: openArray[string]) =
   dest.withTree TypeS, NoLineInfo:
@@ -357,6 +369,9 @@ proc emitEnumDecl(dest: var Tree; typeName, noneName: string;
       for enumName in enumNames:
         emitEnumField dest, enumName
 
+# (type CliCommand . . . (enum . (efld cliCommandNone . . . .) (efld COMMAND . . . .)*))?
+# (type ENUM_TYPE . . . (enum . (efld ENUM_NONE . . . .) (efld ENUM_VALUE . . . .)*))*
+# (type CliOptions . . . (object . (fld ARG . . string .)* (fld command . . CliCommand .)? (fld OPTION . . OPTION_TYPE .)*))
 proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
   if spec.hasCommandSlot:
     var commandNames: seq[string] = @[]
@@ -388,6 +403,7 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
         of fkEnum:
           emitFieldDecl dest, option.fieldName, option.enumTypeName
 
+# (var NAME . . TYPE (call CALLEE))
 proc emitVarDeclCall0(dest: var Tree; name, typeName, callee: string) =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
@@ -396,6 +412,7 @@ proc emitVarDeclCall0(dest: var Tree; name, typeName, callee: string) =
     dest.withTree CallX, NoLineInfo:
       dest.addIdent(callee)
 
+# (var NAME . . int INT)
 proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
@@ -403,6 +420,7 @@ proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
     dest.addIdent("int")
     dest.addIntLit(value)
 
+# (cmd NAME ARG)
 proc emitCallStmt1(dest: var Tree; name, arg: string; isString = false) =
   dest.withTree CmdS, NoLineInfo:
     dest.addIdent(name)
@@ -411,6 +429,8 @@ proc emitCallStmt1(dest: var Tree; name, arg: string; isString = false) =
     else:
       dest.addIdent(arg)
 
+# (call cliUnknownShortOption SPEC (dot token key))
+# (call cliUnknownLongOption SPEC (dot token key))
 proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
   dest.withTree CallX, NoLineInfo:
     if shortOption:
@@ -422,6 +442,9 @@ proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
       dest.addIdent("token")
       dest.addIdent("key")
 
+# (if
+#   (elif (infix "==" (dot token val) CHOICE) (stmts (asgn (dot result FIELD) ENUM_VALUE)))+
+#   (else (stmts (call cliInvalidValue SPEC OPTION (dot token val)))))
 proc emitEnumOptionBody(dest: var Tree; spec: CliSpec; option: OptionSpec) =
   dest.withTree IfS, NoLineInfo:
     for i, choice in option.choices:
@@ -439,6 +462,10 @@ proc emitEnumOptionBody(dest: var Tree; spec: CliSpec; option: OptionSpec) =
             dest.addIdent("token")
             dest.addIdent("val")
 
+# (if
+#   (elif (infix "==" (dot token key) HELP) (stmts (call cliExitHelp SPEC)))?
+#   (elif (infix "==" (dot token key) OPTION_KEY) (stmts OPTION_BODY))*
+#   (else (stmts (call cliUnknown{Short,Long}Option SPEC (dot token key)))))
 proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
   dest.withTree IfS, NoLineInfo:
     if shortOption:
@@ -474,6 +501,9 @@ proc emitOptionDispatch(dest: var Tree; spec: CliSpec; shortOption: bool) =
       dest.withTree StmtsS, NoLineInfo:
         emitUnknownOption dest, spec, shortOption
 
+# (if
+#   (elif (infix "==" (dot token key) COMMAND) (stmts (asgn (dot result command) COMMAND_ENUM)))+
+#   (else (stmts (call cliUnexpectedArgument SPEC (dot token key)))))
 proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
   dest.withTree IfS, NoLineInfo:
     for command in spec.commands:
@@ -490,6 +520,9 @@ proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
             dest.addIdent("token")
             dest.addIdent("key")
 
+# (if
+#   (elif (infix "==" argSlot INT) (stmts SLOT_BODY (cmd inc argSlot)))+
+#   (else (stmts (call cliUnexpectedArgument SPEC (dot token key)))))
 proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
   dest.withTree IfS, NoLineInfo:
     for i, slot in spec.slots:
@@ -514,6 +547,22 @@ proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
             dest.addIdent("token")
             dest.addIdent("key")
 
+# (proc parseCli . . . (params) CliOptions . .
+#   (stmts
+#     (var state . . CliState (call initCliState))
+#     (var token . . CliToken (call CliToken))
+#     (var argSlot . . int 0)
+#     (asgn result (call CliOptions))
+#     (while
+#       (call nextToken state token)
+#       (stmts
+#         (if
+#           (elif (infix "==" (dot token kind) ctkArgument) (stmts ARG_DISPATCH))
+#           (elif (infix "==" (dot token kind) ctkLongOption) (stmts LONG_OPTION_DISPATCH))
+#           (elif (infix "==" (dot token kind) ctkShortOption) (stmts SHORT_OPTION_DISPATCH)))))
+#     (if (elif (infix "<" argSlot INT) (stmts (call cliMissingArguments SPEC))))?
+#     (if (elif (infix "==" (dot result command) VERSION_ENUM) (stmts (call cliExitVersion SPEC))))?
+#     result))
 proc emitParseProc(dest: var Tree; spec: CliSpec) =
   dest.withTree ProcS, NoLineInfo:
     dest.addIdent("parseCli")
