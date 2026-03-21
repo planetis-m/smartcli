@@ -37,7 +37,7 @@ Options:
   assert options.input == "input.txt"
   assert options.output == "out.txt"
   assert options.verbose
-  assert $options.command == "cliCommandGreet"
+  assert $options.command == "cmdGreet"
 
 block:
   nifcArgc = 4

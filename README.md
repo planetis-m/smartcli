@@ -50,6 +50,109 @@ echo options.mode
 - `--mode=fast|slow` generates a field named `mode` and a generated enum type.
 - Commands come from the `Commands:` section and are exposed through `options.command`.
 
+## What `cliapp` Actually Gives You
+
+The pleasant part of the greeter example is that it looks tiny:
+
+```nim
+let options = cliapp"""..."""
+```
+
+The useful part is what that one line buys you at compile time.
+
+For the greeter spec, `smartcli` does not give you a loose bag of strings. It
+generates a real parser and a typed result model:
+
+- a `CliCommand` enum for `greet|version`
+- a `CliOptions` object with `input`, `command`, `output`, and `verbose`
+- a `parseCli()` proc that drives `parseopt` directly
+- built-in `-h`/`--help` handling
+- built-in `version` handling that prints the title line and exits
+
+That means the nice, tiny source:
+
+```nim
+echo options.input
+echo options.output
+echo options.verbose
+echo options.command
+```
+
+is backed by something much closer to this:
+
+```nim
+block:
+  const spec = """..."""
+
+  type
+    CliCommand = enum
+      cmdNone
+      cmdGreet
+      cmdVersion
+
+    CliOptions = object
+      input: string
+      command: CliCommand
+      output: string
+      verbose: bool
+
+  proc parseCli(): CliOptions =
+    var p = initOptParser()
+    var argSlot = 0
+    result = CliOptions()
+
+    while true:
+      next(p)
+      case p.kind
+      of cmdEnd:
+        break
+      of cmdArgument:
+        case argSlot
+        of 0:
+          result.input = p.key
+          inc argSlot
+        of 1:
+          case p.key
+          of "greet":
+            result.command = cmdGreet
+          of "version":
+            result.command = cmdVersion
+          else:
+            cliUnexpectedArgument(spec, p.key)
+          inc argSlot
+        else:
+          cliUnexpectedArgument(spec, p.key)
+      of cmdLongOption:
+        case p.key
+        of "help":
+          cliExitHelp(spec)
+        of "output":
+          result.output = p.val
+        of "verbose":
+          result.verbose = true
+        else:
+          cliUnknownLongOption(spec, p.key)
+      of cmdShortOption:
+        case p.key
+        of "h":
+          cliExitHelp(spec)
+        of "v":
+          result.verbose = true
+        else:
+          cliUnknownShortOption(spec, p.key)
+
+    if argSlot < 2:
+      cliMissingArguments(spec)
+
+    if result.command == cmdVersion:
+      cliExitVersion(spec)
+```
+
+The point is not that you could write this parser yourself. The point is that
+you do not have to. You keep the help text as the source of truth, and you still
+end up with typed fields, command enums, and real parser behavior instead of
+manual string matching spread across your app.
+
 ## Layout
 
 - [src/smartcli.nim](src/smartcli.nim): public runtime API

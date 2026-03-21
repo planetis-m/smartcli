@@ -40,4 +40,4 @@ Options:
   assert options.dest == "dst"
   assert options.output == "backup.log"
   assert $options.mode == "cliModeDelta"
-  assert $options.command == "cliCommandRun"
+  assert $options.command == "cmdRun"
