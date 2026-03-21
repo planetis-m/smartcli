@@ -1,0 +1,8 @@
+nimcache/
+smartcli
+smartcliplugin
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
