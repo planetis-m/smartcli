@@ -10,6 +10,13 @@ type
     fkBool
     fkEnum
 
+  SectionKind = enum
+    skNone
+    skUsage
+    skArguments
+    skCommands
+    skOptions
+
   UsageSlotKind = enum
     uskArgument
     uskCommand
@@ -84,12 +91,18 @@ proc toCamelCase(s: string): string =
     if word.len > 1:
       result.add word.substr(1)
 
-proc sectionKind(line: string): string =
+proc parseSectionHeader(line: string): SectionKind =
   let stripped = line.strip()
-  if stripped.endsWith(':'):
-    result = stripped.substr(0, stripped.high - 1)
+  if stripped.startsWith("Usage:"):
+    result = skUsage
+  elif stripped.startsWith("Arguments:"):
+    result = skArguments
+  elif stripped.startsWith("Commands:"):
+    result = skCommands
+  elif stripped.startsWith("Options:"):
+    result = skOptions
   else:
-    result = ""
+    result = skNone
 
 proc splitEntry(line: string): tuple[left, right: string] =
   result = ("", "")
@@ -106,12 +119,6 @@ proc splitEntry(line: string): tuple[left, right: string] =
   else:
     result.left = stripped.substr(0, splitAt - 1).strip()
     result.right = stripped.substr(splitAt).strip()
-
-proc findArg(args: openArray[ArgSpec]; name: string): int =
-  for i, arg in args:
-    if arg.name == name:
-      return i
-  result = -1
 
 proc parseArgument(spec: var CliSpec; line: string) =
   let entry = splitEntry(line)
@@ -169,107 +176,38 @@ proc parseOption(spec: var CliSpec; line: string) =
     option.enumTypeName = "Cli" & toPascalCase(option.fieldName)
   spec.options.add option
 
-proc parseUsage(spec: var CliSpec; usageLine: string) =
-  let tokens = usageLine.splitWhitespace()
-  if tokens.len <= 1:
-    return
-
-  var commandInserted = false
-  var argInserted = false
-  for i in 1 ..< tokens.len:
-    let token = tokens[i]
-    if token == "[options]" or token == "[option]":
-      continue
-
-    let core = token.strip(chars = {'[', ']', '<', '>'})
-    if core.len == 0:
-      continue
-
-    var isCommand = false
-    if core.contains('|'):
-      let choices = core.split('|')
-      if choices.len > 0:
-        isCommand = true
-        for choice in choices:
-          var found = false
-          for cmd in spec.commands:
-            if choice == cmd.name:
-              found = true
-              break
-          if not found:
-            isCommand = false
-            break
-    else:
-      for cmd in spec.commands:
-        if core == cmd.name:
-          isCommand = true
-          break
-    if isCommand:
-      if not commandInserted:
-        spec.slots.add UsageSlot(kind: uskCommand, index: 0)
-        spec.hasCommandSlot = true
-        commandInserted = true
-      continue
-
-    let argIndex = findArg(spec.args, core)
-    if argIndex >= 0:
-      spec.slots.add UsageSlot(kind: uskArgument, index: argIndex)
-      argInserted = true
-
-  if spec.commands.len > 0 and not commandInserted:
-    spec.slots.add UsageSlot(kind: uskCommand, index: 0)
-    spec.hasCommandSlot = true
-  if spec.args.len > 0 and not argInserted:
-    spec.slots = @[]
-    for i in 0 ..< spec.args.len:
-      spec.slots.add UsageSlot(kind: uskArgument, index: i)
-    if spec.commands.len > 0:
-      spec.slots.add UsageSlot(kind: uskCommand, index: 0)
-      spec.hasCommandSlot = true
-
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec(rawSpec: rawSpec)
-  var currentSection = ""
-  var usageLine = ""
+  var currentSection = skNone
 
   for rawLine in rawSpec.splitLines():
     let stripped = rawLine.strip()
     if result.title.len == 0 and stripped.len > 0:
       result.title = stripped
 
-    let section = sectionKind(rawLine)
-    if section.len > 0:
-      currentSection = section
-      if section == "Usage":
-        let colonAt = rawLine.find(':')
-        if colonAt >= 0:
-          usageLine = rawLine.substr(colonAt + 1).strip()
-      continue
+    let header = parseSectionHeader(rawLine)
+    if header != skNone:
+      currentSection = header
+    elif stripped.len > 0:
+      case currentSection
+      of skUsage:
+        discard
+      of skArguments:
+        parseArgument result, rawLine
+      of skCommands:
+        parseCommand result, rawLine
+      of skOptions:
+        parseOption result, rawLine
+      of skNone:
+        discard
 
-    if stripped.len == 0:
-      continue
-
-    case currentSection
-    of "Usage":
-      if usageLine.len == 0:
-        usageLine = stripped
-    of "Arguments":
-      parseArgument result, rawLine
-    of "Commands":
-      parseCommand result, rawLine
-    of "Options":
-      parseOption result, rawLine
-    else:
-      discard
-
-  if usageLine.len > 0:
-    parseUsage result, usageLine
-  result.slots = @[]
-  for i in 0 ..< result.args.len:
-    result.slots.add UsageSlot(kind: uskArgument, index: i)
-  if result.commands.len > 0:
-    result.slots.add UsageSlot(kind: uskCommand, index: 0)
-    result.hasCommandSlot = true
+  if result.args.len > 0 or result.commands.len > 0:
+    result.slots = @[]
+    for i in 0 ..< result.args.len:
+      result.slots.add UsageSlot(kind: uskArgument, index: i)
+    if result.commands.len > 0:
+      result.slots.add UsageSlot(kind: uskCommand, index: 0)
+      result.hasCommandSlot = true
 
 proc extractSpec(n: Node): string =
   var n = n

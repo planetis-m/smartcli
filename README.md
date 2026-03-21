@@ -49,6 +49,8 @@ echo options.mode
 - `-v, --verbose` generates a `bool` field named `verbose`.
 - `--mode=fast|slow` generates a field named `mode` and a generated enum type.
 - Commands come from the `Commands:` section and are exposed through `options.command`.
+- Positional arguments always come first, and the command comes last.
+- The `Usage:` line is documentation; it does not drive parsing.
 
 ## What `cliapp` Actually Gives You
 
