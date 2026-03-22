@@ -11,22 +11,22 @@ block:
     cstring"greeter",
     cstring"--output=out.txt",
     cstring"-v",
-    cstring"input.txt",
-    cstring"greet"
+    cstring"greet",
+    cstring"input.txt"
   ]
   nifcArgv = cast[ptr UncheckedArray[cstring]](cargv.addr)
 
   let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] INPUT greet|version
-
-Arguments:
-  INPUT  Input file
+Usage: greeter [options] greet|version INPUT
 
 Commands:
   greet    Greets NAME
   version  Displays version and quits
+
+Arguments:
+  INPUT  Input file
 
 Options:
   --mode=fast|slow  Output mode
@@ -44,22 +44,22 @@ block:
   const cargv = [
     cstring"greeter",
     cstring"--mode=slow",
-    cstring"input.txt",
-    cstring"greet"
+    cstring"greet",
+    cstring"input.txt"
   ]
   nifcArgv = cast[ptr UncheckedArray[cstring]](cargv.addr)
 
   let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] INPUT greet|version
-
-Arguments:
-  INPUT  Input file
+Usage: greeter [options] greet|version INPUT
 
 Commands:
   greet    Greets NAME
   version  Displays version and quits
+
+Arguments:
+  INPUT  Input file
 
 Options:
   --mode=fast|slow  Output mode

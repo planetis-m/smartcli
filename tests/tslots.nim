@@ -11,24 +11,24 @@ block:
     cstring"backup",
     cstring"--mode=delta",
     cstring"--output=backup.log",
+    cstring"run",
     cstring"src",
-    cstring"dst",
-    cstring"run"
+    cstring"dst"
   ]
   nifcArgv = cast[ptr UncheckedArray[cstring]](cargv.addr)
 
   let options = cliapp"""Backup v0.1
 Copies files to a target.
 
-Usage: backup [options] SOURCE DEST run|version
-
-Arguments:
-  SOURCE  Source path
-  DEST    Destination path
+Usage: backup [options] run|version SOURCE DEST
 
 Commands:
   run      Start the backup
   version  Display version and quit
+
+Arguments:
+  SOURCE  Source path
+  DEST    Destination path
 
 Options:
   --mode=full|delta  Backup mode

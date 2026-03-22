@@ -4,14 +4,14 @@ import ".." / "src" / [smartcli]
 let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] INPUT greet|version
-
-Arguments:
-  INPUT  Input file
+Usage: greeter [options] greet|version INPUT
 
 Commands:
   greet    Greets NAME
   version  Displays version and quits
+
+Arguments:
+  INPUT  Input file
 
 Options:
   --output=FILE     Output file

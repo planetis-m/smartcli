@@ -211,11 +211,11 @@ proc parseSpec(rawSpec: string): CliSpec =
 
   if result.args.len > 0 or result.commands.len > 0:
     result.slots = @[]
-    for i in 0 ..< result.args.len:
-      result.slots.add UsageSlot(kind: uskArgument, index: i)
     if result.commands.len > 0:
       result.slots.add UsageSlot(kind: uskCommand, index: 0)
       result.hasCommandSlot = true
+    for i in 0 ..< result.args.len:
+      result.slots.add UsageSlot(kind: uskArgument, index: i)
 
 proc extractSpec(n: Node): string =
   var n = n

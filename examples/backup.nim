@@ -4,15 +4,15 @@ import ".." / "src" / [smartcli]
 let options = cliapp"""Backup v0.1
 Copies files to a target.
 
-Usage: backup [options] SOURCE DEST run|version
-
-Arguments:
-  SOURCE  Source path
-  DEST    Destination path
+Usage: backup [options] run|version SOURCE DEST
 
 Commands:
   run      Start the backup
   version  Display version and quit
+
+Arguments:
+  SOURCE  Source path
+  DEST    Destination path
 
 Options:
   --mode=full|delta  Backup mode
