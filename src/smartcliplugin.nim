@@ -17,10 +17,6 @@ type
     skCommands
     skOptions
 
-  UsageSlotKind = enum
-    uskArgument
-    uskCommand
-
   ArgSpec = object
     name: string
     fieldName: string
@@ -28,6 +24,8 @@ type
   CommandSpec = object
     name: string
     enumName: string
+    argNames: seq[string]
+    argIndices: seq[int]
 
   OptionSpec = object
     shortName: string
@@ -38,17 +36,12 @@ type
     enumTypeName: string
     enumNames: seq[string]
 
-  UsageSlot = object
-    kind: UsageSlotKind
-    index: int
-
   CliSpec = object
     rawSpec: string
     title: string
     commands: seq[CommandSpec]
     args: seq[ArgSpec]
     options: seq[OptionSpec]
-    slots: seq[UsageSlot]
     hasCommandSlot: bool
 
 proc fail(msg: string) {.noreturn.} =
@@ -141,11 +134,31 @@ proc parseCommand(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
   if head.len == 0:
     return
-  let name = parseFirstToken(head)
+  let tokens = head.splitWhitespace()
+  let name = tokens[0]
+  var argNames: seq[string] = @[]
+  for i in 1..<tokens.len:
+    argNames.add(tokens[i])
   spec.commands.add CommandSpec(
     name: name,
-    enumName: "cmd" & toPascalCase(name)
+    enumName: "cmd" & toPascalCase(name),
+    argNames: argNames
   )
+
+proc findArgIndex(spec: CliSpec; argName: string): int =
+  for i, arg in spec.args:
+    if arg.name == argName:
+      return i
+  result = -1
+
+proc resolveCommandArgs(spec: var CliSpec) =
+  for i in 0..<spec.commands.len:
+    for argName in spec.commands[i].argNames:
+      let argIndex = findArgIndex(spec, argName)
+      if argIndex < 0:
+        fail("command '" & spec.commands[i].name & "' references unknown argument '" &
+          argName & "'")
+      spec.commands[i].argIndices.add(argIndex)
 
 proc parseOption(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
@@ -209,13 +222,9 @@ proc parseSpec(rawSpec: string): CliSpec =
       of skNone:
         discard
 
-  if result.args.len > 0 or result.commands.len > 0:
-    result.slots = @[]
-    if result.commands.len > 0:
-      result.slots.add UsageSlot(kind: uskCommand, index: 0)
-      result.hasCommandSlot = true
-    for i in 0 ..< result.args.len:
-      result.slots.add UsageSlot(kind: uskArgument, index: i)
+  if result.commands.len > 0:
+    result.hasCommandSlot = true
+    resolveCommandArgs(result)
 
 proc extractSpec(n: Node): string =
   var n = n
@@ -392,6 +401,12 @@ proc emitUnknownOption(dest: var Tree; spec: CliSpec; shortOption: bool) =
     dest.addStrLit(spec.rawSpec)
     emitDotExpr dest, "p", "key"
 
+proc emitUnexpectedArgument(dest: var Tree; spec: CliSpec) =
+  dest.withTree CallX, NoLineInfo:
+    dest.addIdent("cliUnexpectedArgument")
+    dest.addStrLit(spec.rawSpec)
+    emitDotExpr dest, "p", "key"
+
 # (case (dot p val)
 #   (of CHOICE (stmts (asgn (dot result FIELD) ENUM_VALUE)))+
 #   (else (stmts (call cliInvalidValue SPEC OPTION (dot p val)))))
@@ -454,31 +469,89 @@ proc emitCommandChoice(dest: var Tree; spec: CliSpec) =
           emitAssignResultFieldIdent dest, "command", command.enumName
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
-        dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliUnexpectedArgument")
-          dest.addStrLit(spec.rawSpec)
-          emitDotExpr dest, "p", "key"
+        emitUnexpectedArgument dest, spec
 
-# (case argSlot
-#   (of INT (stmts SLOT_BODY (cmd inc argSlot)))+
-#   (else (stmts (call cliUnexpectedArgument SPEC (dot p key)))))
-proc emitArgumentDispatch(dest: var Tree; spec: CliSpec) =
+proc emitCommandArgumentBody(dest: var Tree; spec: CliSpec; command: CommandSpec) =
+  if command.argIndices.len == 0:
+    emitUnexpectedArgument dest, spec
+  else:
+    dest.withTree CaseS, NoLineInfo:
+      dest.addIdent("argSlot")
+      for i, argIndex in command.argIndices:
+        dest.withOfInt i + 1:
+            emitAssignResultFieldFromField dest, spec.args[argIndex].fieldName, "p", "key"
+            emitCallStmt1 dest, "inc", "argSlot"
+      dest.withTree ElseU, NoLineInfo:
+        dest.withTree StmtsS, NoLineInfo:
+          emitUnexpectedArgument dest, spec
+
+proc emitCommandArgumentDispatch(dest: var Tree; spec: CliSpec) =
   dest.withTree CaseS, NoLineInfo:
     dest.addIdent("argSlot")
-    for i, slot in spec.slots:
+    dest.withOfInt 0:
+        emitCommandChoice dest, spec
+        emitCallStmt1 dest, "inc", "argSlot"
+    dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        dest.withTree CaseS, NoLineInfo:
+          emitDotExpr dest, "result", "command"
+          for command in spec.commands:
+            dest.withOfIdent command.enumName:
+                emitCommandArgumentBody dest, spec, command
+          dest.withTree ElseU, NoLineInfo:
+            dest.withTree StmtsS, NoLineInfo:
+              emitUnexpectedArgument dest, spec
+
+proc emitFlatArgumentDispatch(dest: var Tree; spec: CliSpec) =
+  dest.withTree CaseS, NoLineInfo:
+    dest.addIdent("argSlot")
+    for i, arg in spec.args:
       dest.withOfInt i:
-          case slot.kind
-          of uskArgument:
-            emitAssignResultFieldFromField dest, spec.args[slot.index].fieldName, "p", "key"
-          of uskCommand:
-            emitCommandChoice dest, spec
+          emitAssignResultFieldFromField dest, arg.fieldName, "p", "key"
           emitCallStmt1 dest, "inc", "argSlot"
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
-        dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliUnexpectedArgument")
-          dest.addStrLit(spec.rawSpec)
-          emitDotExpr dest, "p", "key"
+        emitUnexpectedArgument dest, spec
+
+proc emitMissingArguments(dest: var Tree; spec: CliSpec) =
+  dest.withTree CallX, NoLineInfo:
+    dest.addIdent("cliMissingArguments")
+    dest.addStrLit(spec.rawSpec)
+
+proc emitCommandMissingArgumentsCheck(dest: var Tree; spec: CliSpec) =
+  dest.withTree IfS, NoLineInfo:
+    dest.withTree ElifU, NoLineInfo:
+      dest.withTree InfixX, NoLineInfo:
+        dest.addIdent("==")
+        emitDotExpr dest, "result", "command"
+        dest.addIdent("cmdNone")
+      dest.withTree StmtsS, NoLineInfo:
+        emitMissingArguments dest, spec
+
+  for command in spec.commands:
+    if command.argIndices.len > 0:
+      dest.withTree IfS, NoLineInfo:
+        dest.withTree ElifU, NoLineInfo:
+          dest.withTree InfixX, NoLineInfo:
+            dest.addIdent("and")
+            dest.withTree InfixX, NoLineInfo:
+              dest.addIdent("==")
+              emitDotExpr dest, "result", "command"
+              dest.addIdent(command.enumName)
+            dest.withTree InfixX, NoLineInfo:
+              dest.addIdent("<")
+              dest.addIdent("argSlot")
+              dest.addIntLit(command.argIndices.len + 1)
+          dest.withTree StmtsS, NoLineInfo:
+            emitMissingArguments dest, spec
+
+proc emitFlatMissingArgumentsCheck(dest: var Tree; spec: CliSpec) =
+  if spec.args.len > 0:
+    dest.withTree IfS, NoLineInfo:
+      dest.withTree ElifU, NoLineInfo:
+        emitLtIntExpr dest, "argSlot", spec.args.len
+        dest.withTree StmtsS, NoLineInfo:
+          emitMissingArguments dest, spec
 
 # (proc parseCli . . . (params) CliOptions . .
 #   (stmts
@@ -518,7 +591,10 @@ proc emitParseProc(dest: var Tree; spec: CliSpec) =
                 dest.withTree BreakS, NoLineInfo:
                   dest.addDotToken()
             dest.withOfIdent "cmdArgument":
-              emitArgumentDispatch dest, spec
+              if spec.hasCommandSlot:
+                emitCommandArgumentDispatch dest, spec
+              else:
+                emitFlatArgumentDispatch dest, spec
             dest.withOfIdent "cmdLongOption":
               emitOptionDispatch dest, spec, false
             dest.withOfIdent "cmdShortOption":
@@ -539,14 +615,10 @@ proc emitParseProc(dest: var Tree; spec: CliSpec) =
                     dest.addStrLit(spec.rawSpec)
             break
 
-      if spec.slots.len > 0:
-        dest.withTree IfS, NoLineInfo:
-          dest.withTree ElifU, NoLineInfo:
-            emitLtIntExpr dest, "argSlot", spec.slots.len
-            dest.withTree StmtsS, NoLineInfo:
-              dest.withTree CallX, NoLineInfo:
-                dest.addIdent("cliMissingArguments")
-                dest.addStrLit(spec.rawSpec)
+      if spec.hasCommandSlot:
+        emitCommandMissingArgumentsCheck dest, spec
+      else:
+        emitFlatMissingArgumentsCheck dest, spec
 
 proc generate(spec: CliSpec; info: LineInfo): Tree =
   result = createTree()

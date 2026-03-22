@@ -22,10 +22,10 @@ import smartcli
 let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] greet|version INPUT
+Usage: greeter [options] (greet INPUT | version)
 
 Commands:
-  greet    Greets NAME
+  greet INPUT  Greets NAME
   version  Displays version and quits
 
 Arguments:
@@ -51,7 +51,8 @@ echo options.mode
 - `-v, --verbose` generates a `bool` field named `verbose`.
 - `--mode=fast|slow` generates a field named `mode` and a generated enum type.
 - Commands come from the `Commands:` section and are exposed through `options.command`.
-- The command is parsed first, followed by positional arguments.
+- Command-specific positional arguments are written inline in `Commands:`.
+- The command is parsed first, followed by that command's positional arguments.
 - The `Usage:` line is documentation; it does not drive parsing.
 
 ## What `cliapp` Actually Gives You
@@ -121,11 +122,19 @@ block:
           else:
             cliUnexpectedArgument(spec, p.key)
           inc argSlot
-        of 1:
-          result.input = p.key
-          inc argSlot
         else:
-          cliUnexpectedArgument(spec, p.key)
+          case result.command
+          of cmdGreet:
+            case argSlot
+            of 1:
+              result.input = p.key
+              inc argSlot
+            else:
+              cliUnexpectedArgument(spec, p.key)
+          of cmdVersion:
+            cliUnexpectedArgument(spec, p.key)
+          else:
+            cliUnexpectedArgument(spec, p.key)
       of cmdLongOption:
         case p.key
         of "help":
