@@ -180,6 +180,8 @@ manual string matching spread across your app.
 - [examples/greeter.nim](examples/greeter.nim): minimal app
 - [examples/backup.nim](examples/backup.nim): enum and flags
 - [tests/tsmoke.nim](tests/tsmoke.nim): parser smoke test
+- [tests/tcommandargs.nim](tests/tcommandargs.nim): mixed command arity test
+- [tests/tsharedargs.nim](tests/tsharedargs.nim): shared argument compatibility test
 - [tests/tslots.nim](tests/tslots.nim): positional slot test
 
 ## Run
@@ -194,6 +196,8 @@ Run the package tests directly:
 
 ```sh
 nimony c -r tests/tsmoke.nim
+nimony c -r tests/tcommandargs.nim
+nimony c -r tests/tsharedargs.nim
 nimony c -r tests/tslots.nim
 ```
 
