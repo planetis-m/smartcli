@@ -524,15 +524,6 @@ proc emitParseProc(dest: var Tree; spec: CliSpec) =
             dest.withOfIdent "cmdShortOption":
               emitOptionDispatch dest, spec, true
 
-      if spec.slots.len > 0:
-        dest.withTree IfS, NoLineInfo:
-          dest.withTree ElifU, NoLineInfo:
-            emitLtIntExpr dest, "argSlot", spec.slots.len
-            dest.withTree StmtsS, NoLineInfo:
-              dest.withTree CallX, NoLineInfo:
-                dest.addIdent("cliMissingArguments")
-                dest.addStrLit(spec.rawSpec)
-
       if spec.hasCommandSlot:
         for command in spec.commands:
           if command.name == "version":
@@ -547,6 +538,15 @@ proc emitParseProc(dest: var Tree; spec: CliSpec) =
                     dest.addIdent("cliExitVersion")
                     dest.addStrLit(spec.rawSpec)
             break
+
+      if spec.slots.len > 0:
+        dest.withTree IfS, NoLineInfo:
+          dest.withTree ElifU, NoLineInfo:
+            emitLtIntExpr dest, "argSlot", spec.slots.len
+            dest.withTree StmtsS, NoLineInfo:
+              dest.withTree CallX, NoLineInfo:
+                dest.addIdent("cliMissingArguments")
+                dest.addStrLit(spec.rawSpec)
 
 proc generate(spec: CliSpec; info: LineInfo): Tree =
   result = createTree()

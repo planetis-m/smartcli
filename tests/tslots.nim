@@ -41,3 +41,42 @@ Options:
   assert options.output == "backup.log"
   assert $options.mode == "cliModeDelta"
   assert $options.command == "cmdRun"
+
+block:
+  nifcArgc = 7
+  const cargv = [
+    cstring"backup",
+    cstring"run",
+    cstring"--mode=full",
+    cstring"src",
+    cstring"--output=after.log",
+    cstring"dst",
+    cstring"-v"
+  ]
+  nifcArgv = cast[ptr UncheckedArray[cstring]](cargv.addr)
+
+  let options = cliapp"""Backup v0.1
+Copies files to a target.
+
+Usage: backup [options] run|version SOURCE DEST
+
+Commands:
+  run      Start the backup
+  version  Display version and quit
+
+Arguments:
+  SOURCE  Source path
+  DEST    Destination path
+
+Options:
+  --mode=full|delta  Backup mode
+  --output=FILE      Log file
+  -v, --verbose      Enable verbose output
+  -h, --help         Show this help and exit"""
+
+  assert options.source == "src"
+  assert options.dest == "dst"
+  assert options.output == "after.log"
+  assert options.verbose
+  assert $options.mode == "cliModeFull"
+  assert $options.command == "cmdRun"
