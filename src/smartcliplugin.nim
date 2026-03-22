@@ -102,8 +102,7 @@ proc parseSectionHeader(line: string): SectionKind =
   else:
     result = skNone
 
-proc splitEntry(line: string): tuple[left, right: string] =
-  result = ("", "")
+proc parseEntryHead(line: string): string =
   let stripped = line.strip()
   var splitAt = -1
   var i = 0
@@ -113,10 +112,9 @@ proc splitEntry(line: string): tuple[left, right: string] =
       break
     inc i
   if splitAt < 0:
-    result = (stripped, "")
+    result = stripped
   else:
-    result.left = stripped.substr(0, splitAt - 1)
-    result.right = stripped.substr(splitAt).strip()
+    result = stripped.substr(0, splitAt - 1)
 
 proc parseFirstToken(s: string): string =
   var endAt = 0
@@ -131,31 +129,31 @@ proc parseFirstToken(s: string): string =
     result = s.substr(0, endAt - 1)
 
 proc parseArgument(spec: var CliSpec; line: string) =
-  let entry = splitEntry(line)
-  if entry.left.len == 0:
+  let head = parseEntryHead(line)
+  if head.len == 0:
     return
   spec.args.add ArgSpec(
-    name: parseFirstToken(entry.left),
-    fieldName: toCamelCase(entry.left)
+    name: parseFirstToken(head),
+    fieldName: toCamelCase(head)
   )
 
 proc parseCommand(spec: var CliSpec; line: string) =
-  let entry = splitEntry(line)
-  if entry.left.len == 0:
+  let head = parseEntryHead(line)
+  if head.len == 0:
     return
-  let name = parseFirstToken(entry.left)
+  let name = parseFirstToken(head)
   spec.commands.add CommandSpec(
     name: name,
     enumName: "cmd" & toPascalCase(name)
   )
 
 proc parseOption(spec: var CliSpec; line: string) =
-  let entry = splitEntry(line)
-  if entry.left.len == 0:
+  let head = parseEntryHead(line)
+  if head.len == 0:
     return
 
   var option = OptionSpec(kind: fkBool)
-  for rawPart in entry.left.split(','):
+  for rawPart in head.split(','):
     let part = rawPart.strip()
     if part.startsWith("--"):
       let valueAt = part.find('=')
