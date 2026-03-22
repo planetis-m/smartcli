@@ -4,6 +4,8 @@
 
 It is aimed at `nimony` projects that want a tiny docopt-like DSL without bringing in a larger parser layer.
 
+The core design direction was inspired by [Andreas Rumpf's forum post](https://forum.nim-lang.org/t/13777#83561): let `cliapp"""..."""` build a validator plus a typed object, so the result is more convenient than hand-written argument loops and nested `case` statements.
+
 ## Why try it?
 
 - The help text is the source of truth.
@@ -178,3 +180,7 @@ Run the package tests directly:
 nimony c -r tests/tsmoke.nim
 nimony c -r tests/tslots.nim
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
