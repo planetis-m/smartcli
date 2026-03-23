@@ -46,23 +46,19 @@ echo options.mode
 
 ## DSL Rules
 
-- `INPUT` generates a required positional `string` field.
-- `--output=FILE` generates a `string` field named `output`.
-- `-v, --verbose` generates a `bool` field named `verbose`.
-- `--mode=fast|slow` generates a field named `mode` and a generated enum type.
-- Commands come from the `Commands:` section and are exposed through `options.command`.
-- Command entries may declare their own positional arguments, for example `greet INPUT`.
-- When commands declare inline arguments, `Arguments:` is optional and descriptive only.
-- If no command entry declares arguments, all commands share the `Arguments:` list.
-- The command is parsed first, followed by positional arguments.
-- The `Usage:` line is documentation; it does not drive parsing.
+- Options become typed fields on `options`.
+- Entries under `Commands:` become values of `options.command`.
+- A command can declare its own positional arguments inline, for example `greet INPUT`.
+- If commands do not declare inline arguments, they all share the arguments listed under `Arguments:`.
+- `Usage:` is documentation only. It does not define parser behavior.
 
-## Current Formatting Limits
+## Current Limitations
 
-- Section headers must start exactly with `Usage:`, `Commands:`, `Arguments:`, or `Options:`.
-- Entry descriptions must be separated from the entry head by at least two spaces.
-- For command entries with inline arguments, keep the full command head before that separator, for example `run ENV TARGET  Execute a deployment`.
-- Wrapped description lines inside `Commands:`, `Arguments:`, or `Options:` are not supported and may be parsed as new entries.
+- Use the section headers exactly as written: `Usage:`, `Commands:`, `Arguments:`, and `Options:`.
+- Each command, argument, or option must fit on a single line. Wrapped descriptions are not supported.
+- Leave at least two spaces between the entry itself and its description.
+- For inline command arguments, keep the whole command before the description, for example `run ENV TARGET  Execute a deployment`.
+- `Usage:` is only shown to the user. It does not control how the parser is generated.
 
 ## What `cliapp` Actually Gives You
 
@@ -78,7 +74,8 @@ For the greeter spec, `smartcli` does not give you a loose bag of strings. It
 generates a real parser and a typed result model:
 
 - a `CliCommand` enum for `greet|version`
-- a `CliOptions` object with `input`, `command`, `output`, and `verbose`
+- a generated `CliMode` enum for `fast|slow`
+- a `CliOptions` object with `input`, `command`, `mode`, `output`, and `verbose`
 - a `parseCli()` proc that drives `parseopt` directly
 - built-in `-h`/`--help` handling
 - built-in `version` handling that prints the title line and exits
@@ -104,9 +101,15 @@ block:
       cmdGreet
       cmdVersion
 
+    CliMode = enum
+      cliModeNone
+      cliModeFast
+      cliModeSlow
+
     CliOptions = object
       input: string
       command: CliCommand
+      mode: CliMode
       output: string
       verbose: bool
 
@@ -148,6 +151,14 @@ block:
         case p.key
         of "help":
           cliExitHelp(spec)
+        of "mode":
+          case p.val
+          of "fast":
+            result.mode = cliModeFast
+          of "slow":
+            result.mode = cliModeSlow
+          else:
+            cliInvalidValue(spec, "--mode", p.val)
         of "output":
           result.output = p.val
         of "verbose":
