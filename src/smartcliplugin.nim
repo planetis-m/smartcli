@@ -83,9 +83,6 @@ proc argumentFieldName(name: string): string =
 proc commandEnumName(name: string): string =
   result = "cmd" & toPascalCase(name)
 
-proc commandEnumName(command: CommandSpec): string =
-  result = commandEnumName(command.name)
-
 proc optionFieldName(option: OptionSpec): string =
   result = toCamelCase(option.longName)
 
@@ -169,12 +166,10 @@ proc parseCommand(spec: var CliSpec; line: string) =
   if tokens.len == 0:
     return
 
-  var command = CommandSpec(name: tokens[0], argumentNames: @[])
+  var argumentNames: seq[string] = @[]
   for i in 1..<tokens.len:
-    command.argumentNames.add tokens[i]
-
-  if command.name.len > 0:
-    spec.commands.add command
+    argumentNames.add tokens[i]
+  spec.commands.add CommandSpec(name: tokens[0], argumentNames: argumentNames)
 
 proc parseOption(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
@@ -509,7 +504,7 @@ proc emitCommandArgumentDispatch(dest: var Tree; rawSpec: string; spec: CliSpec)
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
-      dest.withOfIdent command.commandEnumName():
+      dest.withOfIdent commandEnumName(command.name):
         if command.argumentNames.len == 0:
           dest.withTree CallX, NoLineInfo:
             dest.addIdent("cliUnexpectedArgument")
@@ -550,7 +545,7 @@ proc emitInlineCommandMissingCheck(dest: var Tree; rawSpec: string; spec: CliSpe
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
       let requiredSlots = 1 + command.argumentNames.len
-      dest.withOfIdent command.commandEnumName():
+      dest.withOfIdent commandEnumName(command.name):
         dest.withTree IfS, NoLineInfo:
           dest.withTree ElifU, NoLineInfo:
             emitLtIntExpr dest, "argSlot", requiredSlots
