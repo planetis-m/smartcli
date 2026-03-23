@@ -95,24 +95,27 @@ proc optionEnumNoneName(option: OptionSpec): string =
 proc optionEnumValueName(option: OptionSpec; choice: string): string =
   result = option.optionEnumPrefix & toPascalCase(choice)
 
-proc hasPositionalSlots(spec: CliSpec): bool =
-  result = spec.commands.len > 0 or spec.argumentNames.len > 0
-
 proc hasInlineCommandArguments(spec: CliSpec): bool =
   for command in spec.commands:
     if command.argumentNames.len > 0:
       return true
   result = false
 
-proc positionalArgumentNames(spec: CliSpec): seq[string] =
-  if spec.commands.len == 0 or not spec.hasInlineCommandArguments():
-    result = spec.argumentNames
-  else:
-    result = @[]
-    for command in spec.commands:
-      for argumentName in command.argumentNames:
-        if argumentName notin result:
-          result.add argumentName
+proc usesSharedArguments(spec: CliSpec): bool =
+  result = spec.commands.len == 0 or not spec.hasInlineCommandArguments()
+
+proc hasPositionalSlots(spec: CliSpec): bool =
+  result = spec.commands.len > 0 or spec.argumentNames.len > 0
+
+proc allArgumentNames(spec: CliSpec): seq[string] =
+  if spec.usesSharedArguments():
+    return spec.argumentNames
+
+  result = @[]
+  for command in spec.commands:
+    for argumentName in command.argumentNames:
+      if argumentName notin result:
+        result.add argumentName
 
 proc parseSectionHeader(line: string): SectionKind =
   if line.startsWith("Usage:"):
@@ -160,8 +163,6 @@ proc parseArgument(spec: var CliSpec; line: string) =
   let argumentName = parseFirstToken(head)
   if argumentName.len == 0:
     return
-  if argumentName in spec.argumentNames:
-    fail("duplicate argument: " & argumentName)
   spec.argumentNames.add argumentName
 
 proc parseCommand(spec: var CliSpec; line: string) =
@@ -175,10 +176,7 @@ proc parseCommand(spec: var CliSpec; line: string) =
 
   var command = CommandSpec(name: tokens[0], argumentNames: @[])
   for i in 1..<tokens.len:
-    let argumentName = tokens[i]
-    if argumentName in command.argumentNames:
-      fail("command '" & command.name & "' repeats an argument: " & argumentName)
-    command.argumentNames.add argumentName
+    command.argumentNames.add tokens[i]
 
   if command.name.len > 0:
     spec.commands.add command
@@ -212,14 +210,6 @@ proc parseOption(spec: var CliSpec; line: string) =
     return
   spec.options.add option
 
-proc normalizeCommandArguments(spec: var CliSpec) =
-  if spec.commands.len == 0:
-    return
-
-  if not spec.hasInlineCommandArguments():
-    for i in 0..<spec.commands.len:
-      spec.commands[i].argumentNames = spec.argumentNames
-
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec()
   var currentSection = skNone
@@ -246,8 +236,6 @@ proc parseSpec(rawSpec: string): CliSpec =
 
   for commandLine in commandLines:
     parseCommand result, commandLine
-
-  normalizeCommandArguments result
 
 proc extractSpec(n: Node): string =
   var n = n
@@ -375,7 +363,7 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
     dest.addDots(3)
     dest.withTree ObjectT, NoLineInfo:
       dest.addDotToken()
-      for argumentName in spec.positionalArgumentNames():
+      for argumentName in spec.allArgumentNames():
         emitFieldDecl dest, argumentFieldName(argumentName), "string"
       if spec.commands.len > 0:
         emitFieldDecl dest, "command", "CliCommand"
@@ -541,11 +529,14 @@ proc emitArgumentDispatch(dest: var Tree; rawSpec: string; spec: CliSpec) =
           emitCallStmt1 dest, "inc", "argSlot"
       dest.withTree ElseU, NoLineInfo:
         dest.withTree StmtsS, NoLineInfo:
-          emitCommandArgumentDispatch dest, rawSpec, spec
+          if spec.usesSharedArguments():
+            emitArgumentSlots dest, rawSpec, spec.argumentNames, 1
+          else:
+            emitCommandArgumentDispatch dest, rawSpec, spec
   else:
     emitArgumentSlots dest, rawSpec, spec.argumentNames, 0
 
-proc emitCommandMissingCheck(dest: var Tree; rawSpec: string; spec: CliSpec) =
+proc emitInlineCommandMissingCheck(dest: var Tree; rawSpec: string; spec: CliSpec) =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
@@ -559,6 +550,15 @@ proc emitCommandMissingCheck(dest: var Tree; rawSpec: string; spec: CliSpec) =
                 dest.addIdent("cliMissingArguments")
                 dest.addStrLit(rawSpec)
     dest.withTree ElseU, NoLineInfo:
+      dest.withTree StmtsS, NoLineInfo:
+        dest.withTree CallX, NoLineInfo:
+          dest.addIdent("cliMissingArguments")
+          dest.addStrLit(rawSpec)
+
+proc emitSharedCommandMissingCheck(dest: var Tree; rawSpec: string; argumentCount: int) =
+  dest.withTree IfS, NoLineInfo:
+    dest.withTree ElifU, NoLineInfo:
+      emitLtIntExpr dest, "argSlot", 1 + argumentCount
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
           dest.addIdent("cliMissingArguments")
@@ -632,7 +632,10 @@ proc emitParseProc(dest: var Tree; rawSpec: string; spec: CliSpec) =
 
       if spec.hasPositionalSlots():
         if spec.commands.len > 0:
-          emitCommandMissingCheck dest, rawSpec, spec
+          if spec.usesSharedArguments():
+            emitSharedCommandMissingCheck dest, rawSpec, spec.argumentNames.len
+          else:
+            emitInlineCommandMissingCheck dest, rawSpec, spec
         else:
           dest.withTree IfS, NoLineInfo:
             dest.withTree ElifU, NoLineInfo:
