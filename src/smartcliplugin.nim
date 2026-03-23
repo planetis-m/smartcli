@@ -288,8 +288,7 @@ template withOfInt(dest: var Tree; value: int; body: untyped) =
       body
 
 # (type TYPE . . . (enum . (efld NONE . . . .) (efld VALUE . . . .)*))
-proc emitEnumDecl(dest: var Tree; typeName, noneName: string;
-    enumNames: openArray[string]) =
+proc emitEnumDecl(dest: var Tree; typeName, noneName: string; enumNames: openArray[string]) =
   dest.withTree TypeS, NoLineInfo:
     dest.addIdent(typeName)
     dest.addDots(3)
@@ -315,8 +314,7 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
       for choice in option.choices:
         enumNames.add option.optionEnumValueName(choice)
       emitEnumDecl dest, option.optionEnumTypeName,
-        option.optionEnumNoneName,
-        enumNames
+        option.optionEnumNoneName, enumNames
 
   dest.withTree TypeS, NoLineInfo:
     dest.addIdent("CliOptions")
@@ -395,8 +393,7 @@ proc emitEnumOptionBody(dest: var Tree; rawSpec: string; option: OptionSpec) =
 #   (of HELP (stmts (call cliExitHelp SPEC)))?
 #   (of OPTION_KEY (stmts OPTION_BODY))*
 #   (else (stmts (call cliUnknown{Short,Long}Option SPEC (dot p key))))
-proc emitOptionDispatch(dest: var Tree; rawSpec: string; spec: CliSpec;
-    shortOption: bool) =
+proc emitOptionDispatch(dest: var Tree; rawSpec: string; spec: CliSpec; shortOption: bool) =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "p", "key"
     if shortOption:

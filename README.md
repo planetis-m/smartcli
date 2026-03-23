@@ -4,7 +4,7 @@
 
 It is aimed at `nimony` projects that want a tiny docopt-like DSL without bringing in a larger parser layer.
 
-The core design direction was inspired by [Andreas Rumpf's forum post](https://forum.nim-lang.org/t/13777#83561): let `cliapp"""..."""` build a validator plus a typed object, so the result is more convenient than hand-written argument loops and nested `case` statements.
+The core design direction was inspired by @Araq's [forum post](https://forum.nim-lang.org/t/13777#83561): let `cliapp"""..."""` build a validator plus a typed object, so the result is more convenient than hand-written argument loops and nested `case` statements.
 
 ## Why try it?
 
@@ -53,6 +53,12 @@ echo options.mode
 - Commands come from the `Commands:` section and are exposed through `options.command`.
 - The command is parsed first, followed by positional arguments.
 - The `Usage:` line is documentation; it does not drive parsing.
+
+## Current Formatting Limits
+
+- Section headers must start exactly with `Usage:`, `Commands:`, `Arguments:`, or `Options:`.
+- Entry descriptions must be separated from the entry head by at least two spaces.
+- Wrapped description lines inside `Commands:`, `Arguments:`, or `Options:` are not supported and may be parsed as new entries.
 
 ## What `cliapp` Actually Gives You
 
