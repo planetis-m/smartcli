@@ -101,13 +101,14 @@ proc optionEnumValueName(option: OptionSpec; choice: string): string =
 proc positionalMode(spec: CliSpec): PositionalMode =
   if spec.commands.len == 0:
     if spec.argumentNames.len == 0:
-      return pmNone
-    return pmFlat
-
-  for command in spec.commands:
-    if command.argumentNames.len > 0:
-      return pmInlineCommand
-  result = pmSharedCommand
+      result = pmNone
+    else:
+      result = pmFlat
+  else:
+    result = pmSharedCommand
+    for command in spec.commands:
+      if command.argumentNames.len > 0:
+        return pmInlineCommand
 
 proc parseSectionHeader(line: string): SectionKind =
   if line.startsWith("Usage:"):
@@ -153,9 +154,8 @@ proc parseArgument(spec: var CliSpec; line: string) =
     return
 
   let argumentName = parseFirstToken(head)
-  if argumentName.len == 0:
-    return
-  spec.argumentNames.add argumentName
+  if argumentName.len > 0:
+    spec.argumentNames.add argumentName
 
 proc parseCommand(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
@@ -163,13 +163,11 @@ proc parseCommand(spec: var CliSpec; line: string) =
     return
 
   let tokens = strutils.splitWhitespace(head)
-  if tokens.len == 0:
-    return
-
-  var argumentNames: seq[string] = @[]
-  for i in 1..<tokens.len:
-    argumentNames.add tokens[i]
-  spec.commands.add CommandSpec(name: tokens[0], argumentNames: argumentNames)
+  if tokens.len > 0:
+    var argumentNames: seq[string] = @[]
+    for i in 1..<tokens.len:
+      argumentNames.add tokens[i]
+    spec.commands.add CommandSpec(name: tokens[0], argumentNames: argumentNames)
 
 proc parseOption(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
@@ -196,9 +194,8 @@ proc parseOption(spec: var CliSpec; line: string) =
 
   if option.longName.len == 0:
     option.longName = option.shortName
-  if option.longName == "help":
-    return
-  spec.options.add option
+  if option.longName != "help":
+    spec.options.add option
 
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec()
