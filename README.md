@@ -56,7 +56,8 @@ echo options.mode
 
 - Use the section headers exactly as written: `Usage:`, `Commands:`, `Arguments:`, and `Options:`.
 - Each command, argument, or option must fit on a single line. Wrapped descriptions are not supported.
-- Leave at least two spaces between the entry itself and its description.
+- Leave at least two consecutive whitespace characters between the
+  entry itself and its description.
 - For inline command arguments, keep the whole command before the description, for example `run ENV TARGET  Execute a deployment`.
 - `Usage:` is only shown to the user. It does not control how the parser is generated.
 
@@ -199,7 +200,7 @@ manual string matching spread across your app.
 - [examples/greeter.nim](examples/greeter.nim): minimal app
 - [examples/backup.nim](examples/backup.nim): enum and flags
 - [tests/tsmoke.nim](tests/tsmoke.nim): parser smoke test
-- [tests/tcommandargs.nim](tests/tcommandargs.nim): mixed command arity test
+- [tests/tcommandargs.nim](tests/tcommandargs.nim): mixed command arity and repeated-whitespace separator test
 - [tests/tsharedargs.nim](tests/tsharedargs.nim): shared argument compatibility test
 - [tests/tslots.nim](tests/tslots.nim): positional slot test
 

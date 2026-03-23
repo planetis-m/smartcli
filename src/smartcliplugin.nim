@@ -1,4 +1,4 @@
-import std / [os, strutils]
+import std / [parseutils, strutils]
 
 import nimonyplugins
 
@@ -123,35 +123,18 @@ proc parseSectionHeader(line: string): SectionKind =
     result = skNone
 
 proc parseEntryHead(line: string): string =
-  let stripped = line.strip()
-  var splitAt = -1
+  result = line.strip(trailing = false)
   var i = 0
-  while i + 1 < stripped.len:
-    if stripped[i] == ' ' and stripped[i + 1] == ' ':
-      splitAt = i
+  while i + 1 < result.len:
+    if result[i] in Whitespace and result[i + 1] in Whitespace:
+      result = result.substr(0, i - 1)
       break
     inc i
-  if splitAt < 0:
-    result = stripped
-  else:
-    result = stripped.substr(0, splitAt - 1)
-
-proc parseFirstToken(s: string): string =
-  var endAt = 0
-  while endAt < s.len and s[endAt] notin Whitespace:
-    inc endAt
-
-  if endAt == 0:
-    result = ""
-  elif endAt >= s.len:
-    result = s
-  else:
-    result = s.substr(0, endAt - 1)
 
 proc parseArgument(spec: var CliSpec; head: string) =
-  let argumentName = parseFirstToken(head)
-  if argumentName.len > 0:
-    spec.argumentNames.add argumentName
+  let tokenLen = skipUntil(head, Whitespace)
+  if tokenLen > 0:
+    spec.argumentNames.add head.substr(0, tokenLen - 1)
 
 proc parseCommand(spec: var CliSpec; head: string) =
   var name = ""
