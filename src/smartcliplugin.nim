@@ -148,20 +148,12 @@ proc parseFirstToken(s: string): string =
   else:
     result = s.substr(0, endAt - 1)
 
-proc parseArgument(spec: var CliSpec; line: string) =
-  let head = parseEntryHead(line)
-  if head.len == 0:
-    return
-
+proc parseArgument(spec: var CliSpec; head: string) =
   let argumentName = parseFirstToken(head)
   if argumentName.len > 0:
     spec.argumentNames.add argumentName
 
-proc parseCommand(spec: var CliSpec; line: string) =
-  let head = parseEntryHead(line)
-  if head.len == 0:
-    return
-
+proc parseCommand(spec: var CliSpec; head: string) =
   let tokens = strutils.splitWhitespace(head)
   if tokens.len > 0:
     var argumentNames: seq[string] = @[]
@@ -169,11 +161,7 @@ proc parseCommand(spec: var CliSpec; line: string) =
       argumentNames.add tokens[i]
     spec.commands.add CommandSpec(name: tokens[0], argumentNames: argumentNames)
 
-proc parseOption(spec: var CliSpec; line: string) =
-  let head = parseEntryHead(line)
-  if head.len == 0:
-    return
-
+proc parseOption(spec: var CliSpec; head: string) =
   var option = OptionSpec(kind: fkBool)
   for rawPart in head.split(','):
     let part = rawPart.strip()
@@ -197,28 +185,29 @@ proc parseOption(spec: var CliSpec; line: string) =
   if option.longName != "help":
     spec.options.add option
 
+proc parseSectionEntry(spec: var CliSpec; section: SectionKind; line: string) =
+  let head = parseEntryHead(line)
+  if head.len > 0:
+    case section
+    of skArguments:
+      parseArgument spec, head
+    of skCommands:
+      parseCommand spec, head
+    of skOptions:
+      parseOption spec, head
+    of skUsage, skNone:
+      discard
+
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec()
   var currentSection = skNone
 
   for rawLine in rawSpec.splitLines():
-    let stripped = rawLine.strip()
-
     let header = parseSectionHeader(rawLine)
     if header != skNone:
       currentSection = header
-    elif stripped.len > 0:
-      case currentSection
-      of skUsage:
-        discard
-      of skArguments:
-        parseArgument result, rawLine
-      of skCommands:
-        parseCommand result, rawLine
-      of skOptions:
-        parseOption result, rawLine
-      of skNone:
-        discard
+    elif rawLine.strip().len > 0:
+      parseSectionEntry result, currentSection, rawLine
 
 proc extractSpec(n: Node): string =
   var n = n
