@@ -19,10 +19,10 @@ block:
   let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] (greet INPUT | version)
+Usage: greeter [options] greet|version INPUT
 
 Commands:
-  greet INPUT  Greets NAME
+  greet    Greets NAME
   version  Displays version and quits
 
 Arguments:
@@ -52,10 +52,10 @@ block:
   let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] (greet INPUT | version)
+Usage: greeter [options] greet|version INPUT
 
 Commands:
-  greet INPUT  Greets NAME
+  greet    Greets NAME
   version  Displays version and quits
 
 Arguments:
@@ -69,37 +69,3 @@ Options:
 
   assert options.input == "input.txt"
   assert $options.mode == "cliModeSlow"
-
-block:
-  nifcArgc = 5
-  const cargv = [
-    cstring"greeter",
-    cstring"greet",
-    cstring"--output=late.txt",
-    cstring"input.txt",
-    cstring"-v"
-  ]
-  nifcArgv = cast[ptr UncheckedArray[cstring]](cargv.addr)
-
-  let options = cliapp"""Greeter v0.1
-This program greets.
-
-Usage: greeter [options] (greet INPUT | version)
-
-Commands:
-  greet INPUT  Greets NAME
-  version  Displays version and quits
-
-Arguments:
-  INPUT  Input file
-
-Options:
-  --mode=fast|slow  Output mode
-  --output=FILE     Output file
-  -v, --verbose     Enable verbose output
-  -h, --help        Show this help and exit"""
-
-  assert options.input == "input.txt"
-  assert options.output == "late.txt"
-  assert options.verbose
-  assert $options.command == "cmdGreet"

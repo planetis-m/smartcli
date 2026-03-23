@@ -22,10 +22,10 @@ import smartcli
 let options = cliapp"""Greeter v0.1
 This program greets.
 
-Usage: greeter [options] greet|version INPUT
+Usage: greeter [options] (greet INPUT | version)
 
 Commands:
-  greet    Greets NAME
+  greet INPUT  Greets NAME
   version  Displays version and quits
 
 Arguments:
@@ -46,19 +46,19 @@ echo options.mode
 
 ## DSL Rules
 
-- `INPUT` generates a required positional `string` field.
-- `--output=FILE` generates a `string` field named `output`.
-- `-v, --verbose` generates a `bool` field named `verbose`.
-- `--mode=fast|slow` generates a field named `mode` and a generated enum type.
-- Commands come from the `Commands:` section and are exposed through `options.command`.
-- The command is parsed first, followed by positional arguments.
-- The `Usage:` line is documentation; it does not drive parsing.
+- Options become typed fields on `options`.
+- Entries under `Commands:` become values of `options.command`.
+- A command can declare its own positional arguments inline, for example `greet INPUT`.
+- If commands do not declare inline arguments, they all share the arguments listed under `Arguments:`.
+- `Usage:` is documentation only. It does not define parser behavior.
 
-## Current Formatting Limits
+## Current Limitations
 
-- Section headers must start exactly with `Usage:`, `Commands:`, `Arguments:`, or `Options:`.
-- Entry descriptions must be separated from the entry head by at least two spaces.
-- Wrapped description lines inside `Commands:`, `Arguments:`, or `Options:` are not supported and may be parsed as new entries.
+- Use the section headers exactly as written: `Usage:`, `Commands:`, `Arguments:`, and `Options:`.
+- Each command, argument, or option must fit on a single line. Wrapped descriptions are not supported.
+- Leave at least two spaces between the entry itself and its description.
+- For inline command arguments, keep the whole command before the description, for example `run ENV TARGET  Execute a deployment`.
+- `Usage:` is only shown to the user. It does not control how the parser is generated.
 
 ## What `cliapp` Actually Gives You
 
@@ -74,7 +74,8 @@ For the greeter spec, `smartcli` does not give you a loose bag of strings. It
 generates a real parser and a typed result model:
 
 - a `CliCommand` enum for `greet|version`
-- a `CliOptions` object with `input`, `command`, `output`, and `verbose`
+- a generated `CliMode` enum for `fast|slow`
+- a `CliOptions` object with `input`, `command`, `mode`, `output`, and `verbose`
 - a `parseCli()` proc that drives `parseopt` directly
 - built-in `-h`/`--help` handling
 - built-in `version` handling that prints the title line and exits
@@ -100,9 +101,15 @@ block:
       cmdGreet
       cmdVersion
 
+    CliMode = enum
+      cliModeNone
+      cliModeFast
+      cliModeSlow
+
     CliOptions = object
       input: string
       command: CliCommand
+      mode: CliMode
       output: string
       verbose: bool
 
@@ -127,15 +134,31 @@ block:
           else:
             cliUnexpectedArgument(spec, p.key)
           inc argSlot
-        of 1:
-          result.input = p.key
-          inc argSlot
         else:
-          cliUnexpectedArgument(spec, p.key)
+          case result.command
+          of cmdGreet:
+            case argSlot
+            of 1:
+              result.input = p.key
+              inc argSlot
+            else:
+              cliUnexpectedArgument(spec, p.key)
+          of cmdVersion:
+            cliUnexpectedArgument(spec, p.key)
+          else:
+            cliUnexpectedArgument(spec, p.key)
       of cmdLongOption:
         case p.key
         of "help":
           cliExitHelp(spec)
+        of "mode":
+          case p.val
+          of "fast":
+            result.mode = cliModeFast
+          of "slow":
+            result.mode = cliModeSlow
+          else:
+            cliInvalidValue(spec, "--mode", p.val)
         of "output":
           result.output = p.val
         of "verbose":
@@ -151,11 +174,17 @@ block:
         else:
           cliUnknownShortOption(spec, p.key)
 
-    if argSlot < 2:
-      cliMissingArguments(spec)
-
     if result.command == cmdVersion:
       cliExitVersion(spec)
+
+    case result.command
+    of cmdGreet:
+      if argSlot < 2:
+        cliMissingArguments(spec)
+    of cmdVersion:
+      discard
+    else:
+      cliMissingArguments(spec)
 ```
 
 The point is not that you could write this parser yourself. The point is that
@@ -170,6 +199,8 @@ manual string matching spread across your app.
 - [examples/greeter.nim](examples/greeter.nim): minimal app
 - [examples/backup.nim](examples/backup.nim): enum and flags
 - [tests/tsmoke.nim](tests/tsmoke.nim): parser smoke test
+- [tests/tcommandargs.nim](tests/tcommandargs.nim): mixed command arity test
+- [tests/tsharedargs.nim](tests/tsharedargs.nim): shared argument compatibility test
 - [tests/tslots.nim](tests/tslots.nim): positional slot test
 
 ## Run
@@ -184,6 +215,8 @@ Run the package tests directly:
 
 ```sh
 nimony c -r tests/tsmoke.nim
+nimony c -r tests/tcommandargs.nim
+nimony c -r tests/tsharedargs.nim
 nimony c -r tests/tslots.nim
 ```
 
