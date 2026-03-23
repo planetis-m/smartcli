@@ -1,4 +1,4 @@
-version       = "0.2.1"
+version       = "0.3.1"
 author        = "Antonis Geralis"
 description   = "Compile-time CLI parser generation for Nimony"
 license       = "MIT"

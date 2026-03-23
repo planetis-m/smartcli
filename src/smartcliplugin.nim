@@ -154,12 +154,17 @@ proc parseArgument(spec: var CliSpec; head: string) =
     spec.argumentNames.add argumentName
 
 proc parseCommand(spec: var CliSpec; head: string) =
-  let tokens = strutils.splitWhitespace(head)
-  if tokens.len > 0:
-    var argumentNames: seq[string] = @[]
-    for i in 1..<tokens.len:
-      argumentNames.add tokens[i]
-    spec.commands.add CommandSpec(name: tokens[0], argumentNames: argumentNames)
+  var name = ""
+  var argumentNames: seq[string] = @[]
+
+  for token in strutils.splitWhitespace(head):
+    if name.len == 0:
+      name = token
+    else:
+      argumentNames.add token
+
+  if name.len > 0:
+    spec.commands.add CommandSpec(name: name, argumentNames: argumentNames)
 
 proc parseOption(spec: var CliSpec; head: string) =
   var option = OptionSpec(kind: fkBool)
