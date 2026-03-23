@@ -52,6 +52,7 @@ echo options.mode
 - `--mode=fast|slow` generates a field named `mode` and a generated enum type.
 - Commands come from the `Commands:` section and are exposed through `options.command`.
 - Command entries may declare their own positional arguments, for example `greet INPUT`.
+- When commands declare inline arguments, `Arguments:` is optional and descriptive only.
 - If no command entry declares arguments, all commands share the `Arguments:` list.
 - The command is parsed first, followed by positional arguments.
 - The `Usage:` line is documentation; it does not drive parsing.
@@ -60,6 +61,7 @@ echo options.mode
 
 - Section headers must start exactly with `Usage:`, `Commands:`, `Arguments:`, or `Options:`.
 - Entry descriptions must be separated from the entry head by at least two spaces.
+- For command entries with inline arguments, keep the full command head before that separator, for example `run ENV TARGET  Execute a deployment`.
 - Wrapped description lines inside `Commands:`, `Arguments:`, or `Options:` are not supported and may be parsed as new entries.
 
 ## What `cliapp` Actually Gives You

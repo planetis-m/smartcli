@@ -25,7 +25,7 @@ type
 
   CommandSpec = object
     name: string
-    argumentIndexes: seq[int]
+    argumentNames: seq[string]
 
   CliSpec = object
     commands: seq[CommandSpec]
@@ -98,10 +98,21 @@ proc optionEnumValueName(option: OptionSpec; choice: string): string =
 proc hasPositionalSlots(spec: CliSpec): bool =
   result = spec.commands.len > 0 or spec.argumentNames.len > 0
 
-proc allArgumentIndexes(spec: CliSpec): seq[int] =
-  result = newSeq[int](spec.argumentNames.len)
-  for i in 0..<result.len:
-    result[i] = i
+proc hasInlineCommandArguments(spec: CliSpec): bool =
+  for command in spec.commands:
+    if command.argumentNames.len > 0:
+      return true
+  result = false
+
+proc positionalArgumentNames(spec: CliSpec): seq[string] =
+  if spec.commands.len == 0 or not spec.hasInlineCommandArguments():
+    result = spec.argumentNames
+  else:
+    result = @[]
+    for command in spec.commands:
+      for argumentName in command.argumentNames:
+        if argumentName notin result:
+          result.add argumentName
 
 proc parseSectionHeader(line: string): SectionKind =
   if line.startsWith("Usage:"):
@@ -145,35 +156,29 @@ proc parseArgument(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
   if head.len == 0:
     return
-  spec.argumentNames.add parseFirstToken(head)
 
-proc requireArgumentIndex(spec: CliSpec; commandName, argumentName: string): int =
-  result = spec.argumentNames.find(argumentName)
-  if result < 0:
-    fail("command '" & commandName &
-      "' references an unknown argument: " & argumentName)
+  let argumentName = parseFirstToken(head)
+  if argumentName.len == 0:
+    return
+  if argumentName in spec.argumentNames:
+    fail("duplicate argument: " & argumentName)
+  spec.argumentNames.add argumentName
 
 proc parseCommand(spec: var CliSpec; line: string) =
   let head = parseEntryHead(line)
   if head.len == 0:
     return
 
-  var command = CommandSpec(argumentIndexes: @[])
-  var tokenStart = -1
-  var i = 0
-  while i <= head.len:
-    let atEnd = i == head.len
-    if atEnd or head[i] in Whitespace:
-      if tokenStart >= 0:
-        let token = head.substr(tokenStart, i - 1)
-        if command.name.len == 0:
-          command.name = token
-        else:
-          command.argumentIndexes.add spec.requireArgumentIndex(command.name, token)
-        tokenStart = -1
-    elif tokenStart < 0:
-      tokenStart = i
-    inc i
+  let tokens = strutils.splitWhitespace(head)
+  if tokens.len == 0:
+    return
+
+  var command = CommandSpec(name: tokens[0], argumentNames: @[])
+  for i in 1..<tokens.len:
+    let argumentName = tokens[i]
+    if argumentName in command.argumentNames:
+      fail("command '" & command.name & "' repeats an argument: " & argumentName)
+    command.argumentNames.add argumentName
 
   if command.name.len > 0:
     spec.commands.add command
@@ -211,15 +216,9 @@ proc normalizeCommandArguments(spec: var CliSpec) =
   if spec.commands.len == 0:
     return
 
-  var hasInlineArguments = false
-  for command in spec.commands:
-    if command.argumentIndexes.len > 0:
-      hasInlineArguments = true
-
-  if not hasInlineArguments:
-    let sharedArgumentIndexes = spec.allArgumentIndexes()
+  if not spec.hasInlineCommandArguments():
     for i in 0..<spec.commands.len:
-      spec.commands[i].argumentIndexes = sharedArgumentIndexes
+      spec.commands[i].argumentNames = spec.argumentNames
 
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec()
@@ -376,7 +375,7 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
     dest.addDots(3)
     dest.withTree ObjectT, NoLineInfo:
       dest.addDotToken()
-      for argumentName in spec.argumentNames:
+      for argumentName in spec.positionalArgumentNames():
         emitFieldDecl dest, argumentFieldName(argumentName), "string"
       if spec.commands.len > 0:
         emitFieldDecl dest, "command", "CliCommand"
@@ -497,14 +496,14 @@ proc emitCommandChoice(dest: var Tree; rawSpec: string; spec: CliSpec) =
 # (case argSlot
 #   (of INT (stmts SLOT_BODY (cmd inc argSlot)))+
 #   (else (stmts (call cliUnexpectedArgument SPEC (dot p key)))))
-proc emitArgumentSlots(dest: var Tree; rawSpec: string; spec: CliSpec;
-    argumentIndexes: seq[int]; slotOffset: int) =
+proc emitArgumentSlots(dest: var Tree; rawSpec: string; argumentNames: seq[string];
+    slotOffset: int) =
   dest.withTree CaseS, NoLineInfo:
     dest.addIdent("argSlot")
-    for i, argumentIndex in argumentIndexes:
+    for i, argumentName in argumentNames:
       dest.withOfInt i + slotOffset:
         emitAssignResultFieldFromField dest,
-          argumentFieldName(spec.argumentNames[argumentIndex]), "p", "key"
+          argumentFieldName(argumentName), "p", "key"
         emitCallStmt1 dest, "inc", "argSlot"
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
@@ -518,13 +517,13 @@ proc emitCommandArgumentDispatch(dest: var Tree; rawSpec: string; spec: CliSpec)
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
       dest.withOfIdent command.commandEnumName():
-        if command.argumentIndexes.len == 0:
+        if command.argumentNames.len == 0:
           dest.withTree CallX, NoLineInfo:
             dest.addIdent("cliUnexpectedArgument")
             dest.addStrLit(rawSpec)
             emitDotExpr dest, "p", "key"
         else:
-          emitArgumentSlots dest, rawSpec, spec, command.argumentIndexes, 1
+          emitArgumentSlots dest, rawSpec, command.argumentNames, 1
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
@@ -544,13 +543,13 @@ proc emitArgumentDispatch(dest: var Tree; rawSpec: string; spec: CliSpec) =
         dest.withTree StmtsS, NoLineInfo:
           emitCommandArgumentDispatch dest, rawSpec, spec
   else:
-    emitArgumentSlots dest, rawSpec, spec, spec.allArgumentIndexes(), 0
+    emitArgumentSlots dest, rawSpec, spec.argumentNames, 0
 
 proc emitCommandMissingCheck(dest: var Tree; rawSpec: string; spec: CliSpec) =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
-      let requiredSlots = 1 + command.argumentIndexes.len
+      let requiredSlots = 1 + command.argumentNames.len
       dest.withOfIdent command.commandEnumName():
         dest.withTree IfS, NoLineInfo:
           dest.withTree ElifU, NoLineInfo:

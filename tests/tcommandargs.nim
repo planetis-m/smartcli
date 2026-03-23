@@ -24,10 +24,6 @@ Commands:
   run ENV TARGET     Execute a deployment
   version            Show version and quit
 
-Arguments:
-  ENV     Deployment environment
-  TARGET  Deployment target
-
 Options:
   --mode=fast|safe  Execution mode
   -v, --verbose     Enable verbose output
@@ -59,10 +55,6 @@ Commands:
   status             Show current deployment status
   run ENV TARGET     Execute a deployment
   version            Show version and quit
-
-Arguments:
-  ENV     Deployment environment
-  TARGET  Deployment target
 
 Options:
   --mode=fast|safe  Execution mode
