@@ -206,7 +206,7 @@ proc parseSpec(rawSpec: string): CliSpec =
     let header = parseSectionHeader(rawLine)
     if header != skNone:
       currentSection = header
-    elif rawLine.strip().len > 0:
+    elif not rawLine.isEmptyOrWhitespace:
       parseSectionEntry result, currentSection, rawLine
 
 proc extractSpec(n: Node): string =
