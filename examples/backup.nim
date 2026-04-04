@@ -1,5 +1,5 @@
 import std / syncio
-import ".." / "src" / [smartcli]
+import ".." / "src" / smartcli
 
 let options = cliapp"""Backup v0.1
 Copies files to a target.

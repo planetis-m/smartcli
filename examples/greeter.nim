@@ -1,5 +1,5 @@
 import std / syncio
-import ".." / "src" / [smartcli]
+import ".." / "src" / smartcli
 
 let options = cliapp"""Greeter v0.1
 This program greets.

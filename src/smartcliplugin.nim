@@ -2,8 +2,6 @@ import std / [parseutils, strutils]
 
 import nimonyplugins
 
-include nifprelude
-
 type
   FieldKind = enum
     fkString
@@ -127,8 +125,7 @@ proc parseEntryHead(line: string): string =
   var i = 0
   while i + 1 < result.len:
     if result[i] in Whitespace and result[i + 1] in Whitespace:
-      result = result.substr(0, i - 1)
-      break
+      return result.substr(0, i - 1)
     inc i
 
 proc parseArgument(spec: var CliSpec; head: string) =
@@ -205,7 +202,7 @@ proc extractSpec(n: Node): string =
     inc n
   if n.kind != StringLit:
     fail("cliapp expects a string literal")
-  result = pool.strings[n.litId]
+  result = n.stringValue
 
 proc addDots(dest: var Tree; count: int) =
   for _ in 0 ..< count:
@@ -636,8 +633,7 @@ proc generate(rawSpec: string; spec: CliSpec; info: LineInfo): Tree =
         result.withTree CallX, NoLineInfo:
           result.addIdent("parseCli")
 
-var input = loadTree()
-let root = beginRead(input)
+let root = loadPluginInput()
 let rawSpec = extractSpec(root)
 let spec = parseSpec(rawSpec)
 saveTree generate(rawSpec, spec, root.info)
