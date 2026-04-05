@@ -36,9 +36,6 @@ type
     argumentNames: seq[string]
     options: seq[OptionSpec]
 
-proc fail(msg: string) {.noreturn.} =
-  quit "[smartcli] " & msg
-
 proc toPascalCase(s: string): string =
   result = newStringOfCap(s.len)
   var upperNext = true
@@ -136,13 +133,11 @@ proc parseArgument(spec: var CliSpec; head: string) =
 proc parseCommand(spec: var CliSpec; head: string) =
   var name = ""
   var argumentNames: seq[string] = @[]
-
   for token in strutils.splitWhitespace(head):
     if name.len == 0:
       name = token
     else:
       argumentNames.add token
-
   if name.len > 0:
     spec.commands.add CommandSpec(name: name, argumentNames: argumentNames)
 
@@ -186,7 +181,6 @@ proc parseSectionEntry(spec: var CliSpec; section: SectionKind; line: string) =
 proc parseSpec(rawSpec: string): CliSpec =
   result = CliSpec()
   var currentSection = skNone
-
   for rawLine in rawSpec.splitLines():
     let header = parseSectionHeader(rawLine)
     if header != skNone:
@@ -194,15 +188,12 @@ proc parseSpec(rawSpec: string): CliSpec =
     elif not rawLine.isEmptyOrWhitespace:
       parseSectionEntry result, currentSection, rawLine
 
-proc extractSpec(n: Node): string =
-  var n = n
-  if n.stmtKind == StmtsS:
-    inc n
-  if n.kind == ParLe and n.exprKind == SufX:
-    inc n
-  if n.kind != StringLit:
-    fail("cliapp expects a string literal")
-  result = n.stringValue
+proc extractSpecNode(n: Node): Node =
+  result = n
+  if result.stmtKind == StmtsS:
+    inc result
+  if result.kind == ParLe and result.exprKind == SufX:
+    inc result
 
 # TYPE
 proc emitTypeRef(dest: var Tree; typeName: string) =
@@ -630,6 +621,10 @@ proc generate(rawSpec: string; spec: CliSpec; info: LineInfo): Tree =
           result.addIdent("parseCli")
 
 let root = loadPluginInput()
-let rawSpec = extractSpec(root)
-let spec = parseSpec(rawSpec)
-saveTree generate(rawSpec, spec, root.info)
+let specNode = extractSpecNode(root)
+if specNode.kind == StringLit:
+  let rawSpec = specNode.stringValue
+  let spec = parseSpec(rawSpec)
+  saveTree generate(rawSpec, spec, root.info)
+else:
+  saveTree errorTree("cliapp expects a string literal", specNode)
