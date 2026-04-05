@@ -204,10 +204,6 @@ proc extractSpec(n: Node): string =
     fail("cliapp expects a string literal")
   result = n.stringValue
 
-proc addDots(dest: var Tree; count: int) =
-  for _ in 0 ..< count:
-    dest.addDotToken()
-
 # TYPE
 proc emitTypeRef(dest: var Tree; typeName: string) =
   dest.addIdent(typeName)
@@ -255,15 +251,15 @@ proc emitInitResultObject(dest: var Tree) =
 proc emitFieldDecl(dest: var Tree; fieldName, typeName: string) =
   dest.withTree FldU, NoLineInfo:
     dest.addIdent(fieldName)
-    dest.addDots(2)
+    dest.addEmptyNode2()
     emitTypeRef dest, typeName
-    dest.addDotToken()
+    dest.addEmptyNode()
 
 # (efld FIELD . . . .)
 proc emitEnumField(dest: var Tree; fieldName: string) =
   dest.withTree EfldU, NoLineInfo:
     dest.addIdent(fieldName)
-    dest.addDots(4)
+    dest.addEmptyNode4()
 
 proc emitArgumentFieldDecls(dest: var Tree; spec: CliSpec) =
   case spec.positionalMode()
@@ -305,9 +301,9 @@ template withOfInt(dest: var Tree; value: int; body: untyped) =
 proc emitEnumDecl(dest: var Tree; typeName, noneName: string; enumNames: openArray[string]) =
   dest.withTree TypeS, NoLineInfo:
     dest.addIdent(typeName)
-    dest.addDots(3)
+    dest.addEmptyNode3()
     dest.withTree EnumT, NoLineInfo:
-      dest.addDotToken()
+      dest.addEmptyNode()
       emitEnumField dest, noneName
       for enumName in enumNames:
         emitEnumField dest, enumName
@@ -332,9 +328,9 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
 
   dest.withTree TypeS, NoLineInfo:
     dest.addIdent("CliOptions")
-    dest.addDots(3)
+    dest.addEmptyNode3()
     dest.withTree ObjectT, NoLineInfo:
-      dest.addDotToken()
+      dest.addEmptyNode()
       emitArgumentFieldDecls dest, spec
       if spec.commands.len > 0:
         emitFieldDecl dest, "command", "CliCommand"
@@ -351,7 +347,7 @@ proc emitOptionsDecl(dest: var Tree; spec: CliSpec) =
 proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
-    dest.addDots(2)
+    dest.addEmptyNode2()
     dest.addIdent("int")
     dest.addIntLit(value)
 
@@ -359,7 +355,7 @@ proc emitVarDeclInt(dest: var Tree; name: string; value: int) =
 proc emitVarDeclCall0(dest: var Tree; name, typeName, callee: string) =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
-    dest.addDots(2)
+    dest.addEmptyNode2()
     emitTypeRef dest, typeName
     dest.withTree CallX, NoLineInfo:
       dest.addIdent(callee)
@@ -558,11 +554,11 @@ proc emitParseProc(dest: var Tree; rawSpec: string; spec: CliSpec) =
   let mode = spec.positionalMode()
   dest.withTree ProcS, NoLineInfo:
     dest.addIdent("parseCli")
-    dest.addDots(3)
+    dest.addEmptyNode3()
     dest.withTree ParamsU, NoLineInfo:
       discard
     dest.addIdent("CliOptions")
-    dest.addDots(2)
+    dest.addEmptyNode2()
     dest.withTree StmtsS, NoLineInfo:
       emitVarDeclCall0 dest, "p", "OptParser", "initOptParser"
       if mode != pmNone:
@@ -626,7 +622,7 @@ proc generate(rawSpec: string; spec: CliSpec; info: LineInfo): Tree =
   result = createTree()
   result.withTree StmtsS, info:
     result.withTree BlockS, info:
-      result.addDotToken()
+      result.addEmptyNode()
       result.withTree StmtsS, info:
         emitOptionsDecl result, spec
         emitParseProc result, rawSpec, spec
