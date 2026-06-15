@@ -7,7 +7,7 @@ var
 
 block:
   nifcArgc = 3
-  const cargv = [
+  let cargv = [
     cstring"deploy",
     cstring"status",
     cstring"-v"
@@ -36,7 +36,7 @@ Options:
 
 block:
   nifcArgc = 6
-  const cargv = [
+  let cargv = [
     cstring"deploy",
     cstring"run",
     cstring"--mode=safe",
@@ -69,7 +69,7 @@ Options:
 
 block:
   nifcArgc = 5
-  const cargv = [
+  let cargv = [
     cstring"deploy",
     cstring"--verbose",
     cstring"run",

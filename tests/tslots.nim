@@ -7,7 +7,7 @@ var
 
 block:
   nifcArgc = 6
-  const cargv = [
+  let cargv = [
     cstring"backup",
     cstring"--mode=delta",
     cstring"--output=backup.log",
@@ -44,7 +44,7 @@ Options:
 
 block:
   nifcArgc = 7
-  const cargv = [
+  let cargv = [
     cstring"backup",
     cstring"run",
     cstring"--mode=full",

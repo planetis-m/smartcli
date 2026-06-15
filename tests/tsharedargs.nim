@@ -7,7 +7,7 @@ var
 
 block:
   nifcArgc = 5
-  const cargv = [
+  let cargv = [
     cstring"greeter",
     cstring"--output=out.txt",
     cstring"-v",
@@ -41,7 +41,7 @@ Options:
 
 block:
   nifcArgc = 4
-  const cargv = [
+  let cargv = [
     cstring"greeter",
     cstring"--mode=slow",
     cstring"greet",
