@@ -1,6 +1,6 @@
 import std / [parseutils, strutils]
 
-import nimonyplugins
+import plugins
 
 type
   FieldKind = enum
@@ -191,9 +191,9 @@ proc parseSpec(rawSpec: string): CliSpec =
 proc extractSpecNode(n: NifCursor): NifCursor =
   result = n
   if result.stmtKind == StmtsS:
-    inc result
+    result = firstChild(result)
   if result.kind == ParLe and result.exprKind == SufX:
-    inc result
+    result = firstChild(result)
 
 # TYPE
 proc emitTypeRef(dest: var NifBuilder; typeName: string)
