@@ -1,4 +1,4 @@
-import std / [parseutils, strutils]
+import std / [parseopt, parseutils, strutils]
 
 import plugins
 
@@ -284,6 +284,13 @@ template withOfIdent(dest: var NifBuilder; valueName: string; body: untyped) =
     dest.withTree StmtsS, NoLineInfo:
       body
 
+template withOfBindSym(dest: var NifBuilder; name: untyped; body: untyped) =
+  dest.withTree OfU, NoLineInfo:
+    dest.withTree RangesU, NoLineInfo:
+      dest.bindSym(name)
+    dest.withTree StmtsS, NoLineInfo:
+      body
+
 template withOfString(dest: var NifBuilder; value: string; body: untyped) =
   dest.withTree OfU, NoLineInfo:
     dest.withTree RangesU, NoLineInfo:
@@ -356,14 +363,13 @@ proc emitVarDeclInt(dest: var NifBuilder; name: string; value: int)
     dest.addIntLit(value)
 
 # (var NAME . . TYPE (call CALLEE))
-proc emitVarDeclCall0(dest: var NifBuilder; name, typeName, callee: string)
-  {.ensuresNif: addedStmt(dest).} =
+template emitVarDeclCall0(dest: var NifBuilder; name: string; typeName, callee: untyped) =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
     dest.addEmptyNode2()
-    emitTypeRef dest, typeName
+    dest.bindSym(typeName)
     dest.withTree CallX, NoLineInfo:
-      dest.addIdent(callee)
+      dest.bindSym(callee)
 
 # (cmd NAME ARG)
 proc emitCallStmt1(dest: var NifBuilder; name, arg: string; isString = false)
@@ -594,13 +600,15 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
       dest.withTree WhileS, NoLineInfo:
         dest.addIdent("true")
         dest.withTree StmtsS, NoLineInfo:
-          emitCallStmt1 dest, "next", "p"
+          dest.withTree CmdS, NoLineInfo:
+            dest.bindSym("next")
+            dest.addIdent("p")
           dest.withTree CaseS, NoLineInfo:
             emitDotExpr dest, "p", "kind"
-            dest.withOfIdent "cmdEnd":
+            dest.withOfBindSym "cmdEnd":
               dest.withTree BreakS, NoLineInfo:
                 dest.addDotToken()
-            dest.withOfIdent "cmdArgument":
+            dest.withOfBindSym "cmdArgument":
               if mode != pmNone:
                 emitArgumentDispatch dest, rawSpec, spec
               else:
@@ -608,9 +616,9 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
                   dest.addIdent("cliUnexpectedArgument")
                   dest.addStrLit(rawSpec)
                   emitDotExpr dest, "p", "key"
-            dest.withOfIdent "cmdLongOption":
+            dest.withOfBindSym "cmdLongOption":
               emitOptionDispatch dest, rawSpec, spec, false
-            dest.withOfIdent "cmdShortOption":
+            dest.withOfBindSym "cmdShortOption":
               emitOptionDispatch dest, rawSpec, spec, true
 
       if spec.commands.len > 0:
