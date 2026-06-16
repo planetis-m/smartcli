@@ -363,15 +363,6 @@ proc emitVarDeclInt(dest: var NifBuilder; name: string; value: int)
     dest.addIdent("int")
     dest.addIntLit(value)
 
-# (var NAME . . TYPE (call CALLEE))
-template emitVarDeclCall0(dest: var NifBuilder; name: string; typeName, callee: untyped) =
-  dest.withTree VarS, NoLineInfo:
-    dest.addIdent(name)
-    dest.addEmptyNode2()
-    dest.bindSym(typeName)
-    dest.withTree CallX, NoLineInfo:
-      dest.bindSym(callee)
-
 # (cmd NAME ARG)
 proc emitCallStmt1(dest: var NifBuilder; name, arg: string; isString = false)
   {.ensuresNif: addedStmt(dest).} =
@@ -593,7 +584,12 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
     dest.addIdent("CliOptions")
     dest.addEmptyNode2()
     dest.withTree StmtsS, NoLineInfo:
-      emitVarDeclCall0 dest, "p", "OptParser", "initOptParser"
+      dest.withTree VarS, NoLineInfo:
+        dest.addIdent("p")
+        dest.addEmptyNode2()
+        dest.bindSym("OptParser")
+        dest.withTree CallX, NoLineInfo:
+          dest.bindSym("initOptParser")
       if mode != pmNone:
         emitVarDeclInt dest, "argSlot", 0
       emitInitResultObject dest
