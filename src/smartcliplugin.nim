@@ -364,14 +364,11 @@ proc emitVarDeclInt(dest: var NifBuilder; name: string; value: int)
     dest.addIntLit(value)
 
 # (cmd NAME ARG)
-proc emitCallStmt1(dest: var NifBuilder; name, arg: string; isString = false)
+proc emitCallStmt1(dest: var NifBuilder; name, arg: string)
   {.ensuresNif: addedStmt(dest).} =
   dest.withTree CmdS, NoLineInfo:
     dest.addIdent(name)
-    if isString:
-      dest.addStrLit(arg)
-    else:
-      dest.addIdent(arg)
+    dest.addIdent(arg)
 
 # (call cliUnknownShortOption SPEC (dot VALUE KEY))
 # (call cliUnknownLongOption SPEC (dot VALUE KEY))
