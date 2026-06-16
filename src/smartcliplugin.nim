@@ -1,6 +1,7 @@
 import std / [parseopt, parseutils, strutils]
 
 import plugins
+import smartcli
 
 type
   FieldKind = enum
@@ -387,9 +388,9 @@ proc emitUnknownOption(dest: var NifBuilder; rawSpec: string; shortOption: bool)
   {.ensuresNif: addedExpr(dest).} =
   dest.withTree CallX, NoLineInfo:
     if shortOption:
-      dest.addIdent("cliUnknownShortOption")
+      dest.bindSym("cliUnknownShortOption")
     else:
-      dest.addIdent("cliUnknownLongOption")
+      dest.bindSym("cliUnknownLongOption")
     dest.addStrLit(rawSpec)
     emitDotExpr dest, "p", "key"
 
@@ -407,7 +408,7 @@ proc emitEnumOptionBody(dest: var NifBuilder; rawSpec: string; option: OptionSpe
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliInvalidValue")
+          dest.bindSym("cliInvalidValue")
           dest.addStrLit(rawSpec)
           dest.addStrLit("--" & option.longName)
           emitDotExpr dest, "p", "val"
@@ -423,12 +424,12 @@ proc emitOptionDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec; sh
     if shortOption:
       dest.withOfString "h":
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliExitHelp")
+          dest.bindSym("cliExitHelp")
           dest.addStrLit(rawSpec)
     else:
       dest.withOfString "help":
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliExitHelp")
+          dest.bindSym("cliExitHelp")
           dest.addStrLit(rawSpec)
 
     for option in spec.options:
@@ -460,7 +461,7 @@ proc emitCommandChoice(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliUnexpectedArgument")
+          dest.bindSym("cliUnexpectedArgument")
           dest.addStrLit(rawSpec)
           emitDotExpr dest, "p", "key"
 
@@ -479,7 +480,7 @@ proc emitArgumentSlots(dest: var NifBuilder; rawSpec: string; argumentNames: seq
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliUnexpectedArgument")
+          dest.bindSym("cliUnexpectedArgument")
           dest.addStrLit(rawSpec)
           emitDotExpr dest, "p", "key"
 
@@ -495,7 +496,7 @@ proc emitCommandArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: Cl
       dest.withOfIdent commandEnumName(command.name):
         if command.argumentNames.len == 0:
           dest.withTree CallX, NoLineInfo:
-            dest.addIdent("cliUnexpectedArgument")
+            dest.bindSym("cliUnexpectedArgument")
             dest.addStrLit(rawSpec)
             emitDotExpr dest, "p", "key"
         else:
@@ -503,7 +504,7 @@ proc emitCommandArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: Cl
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliUnexpectedArgument")
+          dest.bindSym("cliUnexpectedArgument")
           dest.addStrLit(rawSpec)
           emitDotExpr dest, "p", "key"
 
@@ -547,12 +548,12 @@ proc emitInlineCommandMissingCheck(dest: var NifBuilder; rawSpec: string; spec: 
             emitLtIntExpr dest, "argSlot", requiredSlots
             dest.withTree StmtsS, NoLineInfo:
               dest.withTree CallX, NoLineInfo:
-                dest.addIdent("cliMissingArguments")
+                dest.bindSym("cliMissingArguments")
                 dest.addStrLit(rawSpec)
     dest.withTree ElseU, NoLineInfo:
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliMissingArguments")
+          dest.bindSym("cliMissingArguments")
           dest.addStrLit(rawSpec)
 
 # (if (elif (infix "<" argSlot REQUIRED) (stmts (call cliMissingArguments SPEC))))
@@ -563,7 +564,7 @@ proc emitSharedCommandMissingCheck(dest: var NifBuilder; rawSpec: string; argume
       emitLtIntExpr dest, "argSlot", 1 + argumentCount
       dest.withTree StmtsS, NoLineInfo:
         dest.withTree CallX, NoLineInfo:
-          dest.addIdent("cliMissingArguments")
+          dest.bindSym("cliMissingArguments")
           dest.addStrLit(rawSpec)
 
 # (proc parseCli . . . (params) CliOptions . .
@@ -613,7 +614,7 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
                 emitArgumentDispatch dest, rawSpec, spec
               else:
                 dest.withTree CallX, NoLineInfo:
-                  dest.addIdent("cliUnexpectedArgument")
+                  dest.bindSym("cliUnexpectedArgument")
                   dest.addStrLit(rawSpec)
                   emitDotExpr dest, "p", "key"
             dest.withOfBindSym "cmdLongOption":
@@ -632,7 +633,7 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
                   dest.addIdent(commandEnumName(command.name))
                 dest.withTree StmtsS, NoLineInfo:
                   dest.withTree CallX, NoLineInfo:
-                    dest.addIdent("cliExitVersion")
+                    dest.bindSym("cliExitVersion")
                     dest.addStrLit(rawSpec)
             break
 
@@ -645,7 +646,7 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
             emitLtIntExpr dest, "argSlot", spec.argumentNames.len
             dest.withTree StmtsS, NoLineInfo:
               dest.withTree CallX, NoLineInfo:
-                dest.addIdent("cliMissingArguments")
+                dest.bindSym("cliMissingArguments")
                 dest.addStrLit(rawSpec)
       of pmSharedCommand:
         emitSharedCommandMissingCheck dest, rawSpec, spec.argumentNames.len
