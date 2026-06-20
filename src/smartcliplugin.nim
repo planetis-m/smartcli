@@ -196,11 +196,6 @@ proc extractSpecNode(n: NifCursor): NifCursor =
   if result.kind == ParLe and result.exprKind == SufX:
     result = firstChild(result)
 
-# TYPE
-proc emitTypeRef(dest: var NifBuilder; typeName: string)
-  {.ensuresNif: addedAny(dest).} =
-  dest.addIdent(typeName)
-
 # (dot VALUE FIELD)
 proc emitDotExpr(dest: var NifBuilder; valueName, fieldName: string)
   {.ensuresNif: addedExpr(dest).} =
@@ -251,7 +246,7 @@ proc emitFieldDecl(dest: var NifBuilder; fieldName, typeName: string)
   dest.withTree FldU, NoLineInfo:
     dest.addIdent(fieldName)
     dest.addEmptyNode2()
-    emitTypeRef dest, typeName
+    dest.addIdent(typeName)
     dest.addEmptyNode()
 
 # (efld FIELD . . . .)
@@ -601,7 +596,7 @@ proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
             emitDotExpr dest, "p", "kind"
             dest.withOfBindSym "cmdEnd":
               dest.withTree BreakS, NoLineInfo:
-                dest.addDotToken()
+                dest.addEmptyNode()
             dest.withOfBindSym "cmdArgument":
               if mode != pmNone:
                 emitArgumentDispatch dest, rawSpec, spec
