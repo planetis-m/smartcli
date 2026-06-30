@@ -190,10 +190,8 @@ proc parseSpec(rawSpec: string): CliSpec =
       parseSectionEntry result, currentSection, rawLine
 
 proc extractSpecNode(n: NifCursor): NifCursor =
-  result = n
-  if result.stmtKind == StmtsS:
-    result = firstChild(result)
-  if result.kind == ParLe and result.exprKind == SufX:
+  result = callArgs(n)
+  if result.exprKind == SufX:
     result = firstChild(result)
 
 # (dot VALUE FIELD)
@@ -654,7 +652,7 @@ proc generate(rawSpec: string; spec: CliSpec; info: LineInfo): NifBuilder =
 
 let root = loadPluginInput()
 let specNode = extractSpecNode(root)
-if specNode.kind == StringLit:
+if specNode.kind == StrLit:
   let rawSpec = specNode.stringValue
   let spec = parseSpec(rawSpec)
   saveTree generate(rawSpec, spec, root.info)
