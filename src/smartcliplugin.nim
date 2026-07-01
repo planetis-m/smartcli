@@ -196,14 +196,14 @@ proc extractSpecNode(n: NifCursor): NifCursor =
 
 # (dot VALUE FIELD)
 proc emitDotExpr(dest: var NifBuilder; valueName, fieldName: string)
-  {.ensuresNif: addedExpr(dest).} =
+    {.ensuresNif: addedExpr(dest).} =
   dest.withTree DotX, NoLineInfo:
     dest.addIdent(valueName)
     dest.addIdent(fieldName)
 
 # (infix "<" NAME INT)
 proc emitLtIntExpr(dest: var NifBuilder; name: string; value: int)
-  {.ensuresNif: addedExpr(dest).} =
+    {.ensuresNif: addedExpr(dest).} =
   dest.withTree InfixX, NoLineInfo:
     dest.addIdent("<")
     dest.addIdent(name)
@@ -211,28 +211,28 @@ proc emitLtIntExpr(dest: var NifBuilder; name: string; value: int)
 
 # (asgn (dot result FIELD) (dot VALUE SOURCE_FIELD))
 proc emitAssignResultFieldFromField(dest: var NifBuilder; fieldName, valueName, sourceField: string)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
     emitDotExpr dest, valueName, sourceField
 
 # (asgn (dot result FIELD) VALUE)
 proc emitAssignResultFieldIdent(dest: var NifBuilder; fieldName, valueName: string)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
     dest.addIdent(valueName)
 
 # (asgn (dot result FIELD) true)
 proc emitAssignResultFieldTrue(dest: var NifBuilder; fieldName: string)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree AsgnS, NoLineInfo:
     emitDotExpr dest, "result", fieldName
     dest.addIdent("true")
 
 # (asgn result (call CliOptions))
 proc emitInitResultObject(dest: var NifBuilder)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree AsgnS, NoLineInfo:
     dest.addIdent("result")
     dest.withTree CallX, NoLineInfo:
@@ -240,7 +240,7 @@ proc emitInitResultObject(dest: var NifBuilder)
 
 # (fld FIELD . . TYPE .)
 proc emitFieldDecl(dest: var NifBuilder; fieldName, typeName: string)
-  {.ensuresNif: addedNested(dest).} =
+    {.ensuresNif: addedNested(dest).} =
   dest.withTree FldU, NoLineInfo:
     dest.addIdent(fieldName)
     dest.addEmptyNode2()
@@ -249,14 +249,14 @@ proc emitFieldDecl(dest: var NifBuilder; fieldName, typeName: string)
 
 # (efld FIELD . . . .)
 proc emitEnumField(dest: var NifBuilder; fieldName: string)
-  {.ensuresNif: addedNested(dest).} =
+    {.ensuresNif: addedNested(dest).} =
   dest.withTree EfldU, NoLineInfo:
     dest.addIdent(fieldName)
     dest.addEmptyNode4()
 
 # (fld ARG . . string .)*
 proc emitArgumentFieldDecls(dest: var NifBuilder; spec: CliSpec)
-  {.ensuresNif: addedAny(dest).} =
+    {.ensuresNif: addedAny(dest).} =
   case spec.positionalMode()
   of pmNone:
     discard
@@ -301,7 +301,7 @@ template withOfInt(dest: var NifBuilder; value: int; body: untyped) =
 
 # (type TYPE . . . (enum . (efld NONE . . . .) (efld VALUE . . . .)*))
 proc emitEnumDecl(dest: var NifBuilder; typeName, noneName: string; enumNames: openArray[string])
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree TypeS, NoLineInfo:
     dest.addIdent(typeName)
     dest.addEmptyNode3()
@@ -315,7 +315,7 @@ proc emitEnumDecl(dest: var NifBuilder; typeName, noneName: string; enumNames: o
 # (type ENUM_TYPE . . . (enum . (efld ENUM_NONE . . . .) (efld ENUM_VALUE . . . .)*))*
 # (type CliOptions . . . (object . (fld ARG . . string .)* (fld command . . CliCommand .)? (fld OPTION . . OPTION_TYPE .)*))
 proc emitOptionsDecl(dest: var NifBuilder; spec: CliSpec)
-  {.ensuresNif: addedAny(dest).} =
+    {.ensuresNif: addedAny(dest).} =
   if spec.commands.len > 0:
     var commandNames: seq[string] = @[]
     for command in spec.commands:
@@ -349,7 +349,7 @@ proc emitOptionsDecl(dest: var NifBuilder; spec: CliSpec)
 
 # (var NAME . . int INT)
 proc emitVarDeclInt(dest: var NifBuilder; name: string; value: int)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree VarS, NoLineInfo:
     dest.addIdent(name)
     dest.addEmptyNode2()
@@ -358,7 +358,7 @@ proc emitVarDeclInt(dest: var NifBuilder; name: string; value: int)
 
 # (cmd NAME ARG)
 proc emitCallStmt1(dest: var NifBuilder; name, arg: string)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CmdS, NoLineInfo:
     dest.addIdent(name)
     dest.addIdent(arg)
@@ -366,7 +366,7 @@ proc emitCallStmt1(dest: var NifBuilder; name, arg: string)
 # (call cliUnknownShortOption SPEC (dot VALUE KEY))
 # (call cliUnknownLongOption SPEC (dot VALUE KEY))
 proc emitUnknownOption(dest: var NifBuilder; rawSpec: string; shortOption: bool)
-  {.ensuresNif: addedExpr(dest).} =
+    {.ensuresNif: addedExpr(dest).} =
   dest.withTree CallX, NoLineInfo:
     if shortOption:
       dest.bindSym("cliUnknownShortOption")
@@ -379,7 +379,7 @@ proc emitUnknownOption(dest: var NifBuilder; rawSpec: string; shortOption: bool)
 #   (of CHOICE (stmts (asgn (dot result FIELD) ENUM_VALUE)))+
 #   (else (stmts (call cliInvalidValue SPEC OPTION (dot p val)))))
 proc emitEnumOptionBody(dest: var NifBuilder; rawSpec: string; option: OptionSpec)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "p", "val"
     for choice in option.choices:
@@ -399,7 +399,7 @@ proc emitEnumOptionBody(dest: var NifBuilder; rawSpec: string; option: OptionSpe
 #   (of OPTION_KEY (stmts OPTION_BODY))*
 #   (else (stmts (call cliUnknown{Short,Long}Option SPEC (dot p key))))
 proc emitOptionDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec; shortOption: bool)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "p", "key"
     if shortOption:
@@ -433,7 +433,7 @@ proc emitOptionDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec; sh
 #   (of COMMAND (stmts (asgn (dot result command) COMMAND_ENUM)))+
 #   (else (stmts (call cliUnexpectedArgument SPEC (dot p key))))
 proc emitCommandChoice(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "p", "key"
     for command in spec.commands:
@@ -470,7 +470,7 @@ proc emitArgumentSlots(dest: var NifBuilder; rawSpec: string; argumentNames: seq
 #   (of COMMAND_ENUM (stmts ARGUMENT_SLOTS))*
 #   (else (stmts (call cliUnexpectedArgument SPEC (dot p key)))))
 proc emitCommandArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
@@ -493,7 +493,7 @@ proc emitCommandArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: Cl
 # (if (elif (infix "<" argSlot 1) (stmts COMMAND_CHOICE (cmd inc argSlot)))
 #   (else (stmts ARGUMENT_SLOTS_OR_COMMAND_ARGUMENT_DISPATCH)))?
 proc emitArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
-  {.ensuresNif: addedAny(dest).} =
+    {.ensuresNif: addedAny(dest).} =
   let mode = spec.positionalMode()
   case mode
   of pmNone:
@@ -518,7 +518,7 @@ proc emitArgumentDispatch(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
 #   (of COMMAND_ENUM (stmts (if (elif (infix "<" argSlot REQUIRED) (stmts (call cliMissingArguments SPEC))))))+
 #   (else (stmts (call cliMissingArguments SPEC))))
 proc emitInlineCommandMissingCheck(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree CaseS, NoLineInfo:
     emitDotExpr dest, "result", "command"
     for command in spec.commands:
@@ -539,7 +539,7 @@ proc emitInlineCommandMissingCheck(dest: var NifBuilder; rawSpec: string; spec: 
 
 # (if (elif (infix "<" argSlot REQUIRED) (stmts (call cliMissingArguments SPEC))))
 proc emitSharedCommandMissingCheck(dest: var NifBuilder; rawSpec: string; argumentCount: int)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   dest.withTree IfS, NoLineInfo:
     dest.withTree ElifU, NoLineInfo:
       emitLtIntExpr dest, "argSlot", 1 + argumentCount
@@ -564,7 +564,7 @@ proc emitSharedCommandMissingCheck(dest: var NifBuilder; rawSpec: string; argume
 #     (if (elif (infix "<" argSlot INT) (stmts (call cliMissingArguments SPEC))))?
 #     (if (elif (infix "==" (dot result command) VERSION_ENUM) (stmts (call cliExitVersion SPEC))))?))
 proc emitParseProc(dest: var NifBuilder; rawSpec: string; spec: CliSpec)
-  {.ensuresNif: addedStmt(dest).} =
+    {.ensuresNif: addedStmt(dest).} =
   let mode = spec.positionalMode()
   dest.withTree ProcS, NoLineInfo:
     dest.addIdent("parseCli")
